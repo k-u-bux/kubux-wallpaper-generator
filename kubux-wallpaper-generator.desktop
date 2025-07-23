@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Kubux Wallpaper Generator
+Comment=AI-powered wallpaper creation tool
+Exec=kubux-wallpaper-generator
+Icon=kubux-wallpaper-generator
+Terminal=false
+Type=Application
+Categories=Graphics;Photography;
+Keywords=wallpaper;AI;generator;background;
+StartupNotify=true
