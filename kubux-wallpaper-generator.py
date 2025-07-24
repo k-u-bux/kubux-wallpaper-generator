@@ -62,13 +62,7 @@ client = Together(api_key=TOGETHER_API_KEY)
 
 def generate_image(prompt, model="stabilityai/stable-diffusion-xl-base-1.0", width=1024, height=1024, steps=20):
     try:
-        response = client.images.generate(
-            prompt=prompt,
-            model=model,
-            width=width,
-            height=height,
-            steps=steps
-        )
+        response = client.images.generate(prompt=prompt, model=model, width=width, height=height, steps=steps)
         return response.data[0].url
     except Exception as e:
         messagebox.showerror("API Error", f"Error generating image: {e}")
@@ -79,8 +73,7 @@ def download_image(url, save_path):
         response = requests.get(url, stream=True)
         response.raise_for_status() 
         with open(save_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+            for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
         return True
     except Exception as e:
         messagebox.showerror("Download Error", f"Failed to download image: {e}")
@@ -94,10 +87,9 @@ class WallpaperApp(tk.Tk):
 
         try:
             self.tk.call('wm', 'class', self._w, 'io.github.kubux.wallpaper-generator')
-        except tk.TclError:
-            pass
+        except tk.TclError: pass
 
-        # Initialize state variables
+        # Initialize state variables and debounce job IDs
         self.current_image_path = None
         self.max_history_items = 25
         self.gallery_image_files = []
@@ -105,40 +97,40 @@ class WallpaperApp(tk.Tk):
         self.gallery_current_selection = None
         self.gallery_thumbnail_max_size = DEFAULT_THUMBNAIL_DIM
         self._gallery_scale_update_after_id = None
+        self._gallery_resize_job = None
         self._ui_scale_job = None
 
-        # --- THE CORRECT STARTUP SEQUENCE ---
+        # --- THE CORRECT, FLICKER-FREE STARTUP SEQUENCE ---
 
-        # 1. Load settings from files (gets us the scale factors)
+        # 1. Load settings from files to get the scale factors
         self.load_prompt_history()
         self.load_app_settings()
         
-        # 2. Set up the master font object with the correct size *before* creating any widgets.
+        # 2. **CRITICAL FIX:** Pre-calculate the final thumbnail pixel size *before* any rendering occurs
+        self.gallery_thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * self.current_thumbnail_scale)
+
+        # 3. Set up master font and main window size
         self.base_font_size = 12
         self.app_font = tkFont.Font(family="TkDefaultFont", size=int(self.base_font_size * self.current_font_scale))
-        
-        # 3. Apply main window size.
         self.geometry(self.initial_geometry)
 
-        # 4. Create the widget hierarchy, applying self.app_font to all widgets.
+        # 4. Create the widget hierarchy. Callbacks will be assigned *after* initial values are set.
         self.create_widgets()
 
-        # 5. Force tkinter to calculate layout based on widgets with the correct font size.
+        # 5. Force layout calculation and set pane positions
         self.update_idletasks()
-        
-        # 6. Now that widgets have their real sizes, set the sash positions.
         self.set_initial_pane_positions()
         
-        # 7. Populate the UI with data.
+        # 6. Populate the UI with data. This is now the ONLY render at startup.
         self.load_images()
 
-        # 8. Bind final events. The UI scale is already correct.
+        # 7. Bind final events
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)
 
 
     def load_prompt_history(self):
-        # (This method is unchanged)
+        # (Unchanged)
         try:
             if os.path.exists(PROMPT_HISTORY_FILE):
                 with open(PROMPT_HISTORY_FILE, 'r') as f:
@@ -147,14 +139,14 @@ class WallpaperApp(tk.Tk):
         except (json.JSONDecodeError, Exception): self.prompt_history = []
 
     def save_prompt_history(self):
-        # (This method is unchanged)
+        # (Unchanged)
         try:
             with open(PROMPT_HISTORY_FILE, 'w') as f:
                 json.dump(self.prompt_history, f, indent=4) 
         except Exception as e: print(f"Error saving prompt history: {e}")
 
     def load_app_settings(self):
-        # (This method is unchanged)
+        # (Unchanged)
         try:
             if os.path.exists(APP_SETTINGS_FILE):
                 with open(APP_SETTINGS_FILE, 'r') as f:
@@ -173,7 +165,7 @@ class WallpaperApp(tk.Tk):
             self.vertical_paned_position = 400
 
     def save_app_settings(self):
-        # (This method is unchanged)
+        # (Unchanged)
         try:
             settings = {
                 "ui_scale": self.current_font_scale,
@@ -188,12 +180,13 @@ class WallpaperApp(tk.Tk):
             print(f"Error saving app settings: {e}")
 
     def on_closing(self):
+        # (Unchanged)
         self.save_prompt_history()
         self.save_app_settings() 
         self.destroy() 
 
     def create_widgets(self):
-        # (This method is unchanged - it already uses self.app_font correctly)
+        # This method now contains the fix to prevent the "surprise event"
         self.style = ttk.Style()
         self.style.configure('.', font=self.app_font) 
 
@@ -230,6 +223,7 @@ class WallpaperApp(tk.Tk):
         self.gallery_canvas.configure(yscrollcommand=self.gallery_scrollbar.set)
         self.gallery_grid_frame = tk.Frame(self.gallery_canvas, bg="lightgray")
         self.gallery_canvas.create_window((0, 0), window=self.gallery_grid_frame, anchor="nw")
+        
         self.gallery_canvas.bind("<Configure>", self._gallery_on_canvas_configure)
         self._gallery_bind_mousewheel(self)
 
@@ -237,18 +231,25 @@ class WallpaperApp(tk.Tk):
         controls_frame.pack(fill="x", pady=(5, 0))
         controls_frame.grid_columnconfigure((1, 3), weight=1)
         
-        tk.Button(controls_frame, text="Generate", command=self.on_generate_button_click, font=self.app_font).grid(row=0, column=0, sticky="w")
-        self.generate_button = controls_frame.winfo_children()[-1]
+        self.generate_button = tk.Button(controls_frame, text="Generate", command=self.on_generate_button_click, font=self.app_font)
+        self.generate_button.grid(row=0, column=0, sticky="w")
         
         center_block = tk.Frame(controls_frame)
         center_block.grid(row=0, column=2)
         tk.Label(center_block, text="UI Size:", font=self.app_font).pack(side="left")
-        self.scale_slider = tk.Scale(center_block, from_=0.5, to_=2.5, resolution=0.1, orient="horizontal", command=self.update_ui_scale, showvalue=False, font=self.app_font, length=100)
+        
+        # **CRITICAL FIX:** Create slider, set value, THEN assign command
+        self.scale_slider = tk.Scale(center_block, from_=0.5, to_=2.5, resolution=0.1, orient="horizontal", showvalue=False, length=100)
         self.scale_slider.set(self.current_font_scale)
+        self.scale_slider.config(command=self.update_ui_scale)
         self.scale_slider.pack(side="left", padx=(0, 20))
+        
         tk.Label(center_block, text="Thumb Size:", font=self.app_font).pack(side="left")
-        self.thumbnail_scale_slider = tk.Scale(center_block, from_=0.5, to_=2.5, resolution=0.1, orient="horizontal", command=self._gallery_update_thumbnail_scale_callback, showvalue=False, font=self.app_font, length=100)
+
+        # **CRITICAL FIX:** Apply same logic to thumbnail slider
+        self.thumbnail_scale_slider = tk.Scale(center_block, from_=0.5, to_=2.5, resolution=0.1, orient="horizontal", showvalue=False, length=100)
         self.thumbnail_scale_slider.set(self.current_thumbnail_scale)
+        self.thumbnail_scale_slider.config(command=self._gallery_update_thumbnail_scale_callback)
         self.thumbnail_scale_slider.pack(side="left")
 
         right_block = tk.Frame(controls_frame)
@@ -258,18 +259,19 @@ class WallpaperApp(tk.Tk):
         tk.Button(right_block, text="Set", command=self.set_current_as_wallpaper, font=self.app_font).pack(side="left")
 
     def set_initial_pane_positions(self):
-        # (This method is unchanged)
+        # (Unchanged)
         try:
             self.paned_window.sash_place(0, self.horizontal_paned_position, 0)
             self.vertical_paned.sash_place(0, 0, self.vertical_paned_position)
         except (tk.TclError, IndexError): pass
 
     def update_ui_scale(self, value):
-        # Debounce to prevent lag during slider dragging
+        # (Unchanged)
         if self._ui_scale_job: self.after_cancel(self._ui_scale_job)
-        self._ui_scale_job = self.after(150, lambda: self._do_update_ui_scale(float(value)))
+        self._ui_scale_job = self.after(400, lambda: self._do_update_ui_scale(float(value)))
 
     def _do_update_ui_scale(self, scale_factor):
+        # (Unchanged)
         self.current_font_scale = scale_factor
         new_size = int(self.base_font_size * scale_factor)
         self.app_font.config(size=new_size)
@@ -282,19 +284,19 @@ class WallpaperApp(tk.Tk):
         update_widget_fonts(self)
         if self.current_image_path: self.display_image(self.current_image_path)
     
-    # All other methods (display_image, gallery methods, actions, etc.) are unchanged...
     def on_image_display_frame_resize(self, event):
+        # (Unchanged)
         if self.current_image_path and event.width > 1 and event.height > 1:
             self.display_image(self.current_image_path)
 
     def display_image(self, image_path):
+        # (Unchanged)
         try:
             full_img = Image.open(image_path)
             fw, fh = self.generated_image_label.winfo_width(), self.generated_image_label.winfo_height()
             if fw <= 1 or fh <= 1: return
             
-            img_aspect = full_img.width / full_img.height
-            frame_aspect = fw / fh
+            img_aspect, frame_aspect = full_img.width / full_img.height, fw / fh
             if img_aspect > frame_aspect: nw, nh = fw - 10, int((fw - 10) / img_aspect)
             else: nh, nw = fh - 10, int((fh - 10) * img_aspect)
                 
@@ -307,7 +309,10 @@ class WallpaperApp(tk.Tk):
             messagebox.showerror("Image Display Error", f"Could not display image: {e}")
             self.current_image_path = None
 
+    # --- Integrated Gallery Methods ---
+
     def load_images(self):
+        # (Unchanged)
         try:
             self.gallery_image_files = sorted([os.path.join(IMAGE_DIR, f) for f in os.listdir(IMAGE_DIR) if f.lower().endswith(('.png', '.jpg', '.jpeg'))], reverse=True)
         except OSError:
@@ -315,6 +320,7 @@ class WallpaperApp(tk.Tk):
         self._gallery_refresh_display()
 
     def _gallery_refresh_display(self):
+        # (Unchanged)
         for widget in self.gallery_grid_frame.winfo_children(): widget.destroy()
         if not self.gallery_image_files: return
         
@@ -334,16 +340,19 @@ class WallpaperApp(tk.Tk):
         self.gallery_canvas.config(scrollregion=self.gallery_canvas.bbox("all"))
 
     def _gallery_update_thumbnail_scale_callback(self, value):
+        # (Unchanged)
         if self._gallery_scale_update_after_id: self.after_cancel(self._gallery_scale_update_after_id)
-        self._gallery_scale_update_after_id = self.after(150, lambda: self._gallery_do_scale_update(float(value)))
+        self._gallery_scale_update_after_id = self.after(400, lambda: self._gallery_do_scale_update(float(value)))
 
     def _gallery_do_scale_update(self, scale):
+        # (Unchanged)
         self.current_thumbnail_scale = scale
         self.gallery_thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * scale)
         self.gallery_thumbnails_cache.clear()
         self._gallery_refresh_display()
 
     def _gallery_get_thumbnail(self, img_path):
+        # (Unchanged)
         cache_key = f"{img_path}_{self.gallery_thumbnail_max_size}"
         if cache_key not in self.gallery_thumbnails_cache:
             try:
@@ -356,25 +365,39 @@ class WallpaperApp(tk.Tk):
         return self.gallery_thumbnails_cache.get(cache_key)
 
     def _gallery_on_canvas_configure(self, event):
+        # (Unchanged)
+        if self._gallery_resize_job:
+            self.after_cancel(self._gallery_resize_job)
+        self._gallery_resize_job = self.after(400, lambda e=event: self._do_gallery_resize_refresh(e))
+
+    def _do_gallery_resize_refresh(self, event):
+        # (Unchanged)
         self.gallery_canvas.itemconfig(self.gallery_canvas.find_all()[0], width=event.width)
+        
         try: current_columns = self.gallery_grid_frame.grid_size()[0]
         except IndexError: current_columns = 0
+            
         new_columns = self._gallery_calculate_columns()
-        if new_columns != current_columns and current_columns > 0: self._gallery_refresh_display()
+        
+        if new_columns != current_columns and current_columns > 0: 
+            self._gallery_refresh_display()
 
     def _gallery_calculate_columns(self):
+        # (Unchanged)
         available_width = self.gallery_canvas.winfo_width()
         if available_width <= 1: return 1
-        thumb_width_with_padding = self.gallery_thumbnail_max_size + 4
+        thumb_width_with_padding = self.gallery_thumbnail_max_size + 4 
         return max(1, (available_width - 20) // thumb_width_with_padding)
 
     def _gallery_on_thumbnail_click(self, image_path):
+        # (Unchanged)
         old_selection = self.gallery_current_selection
         self.gallery_current_selection = image_path
         if old_selection != self.gallery_current_selection: self._gallery_update_selection_highlight(old_selection, image_path)
         self.display_image(image_path)
 
     def _gallery_update_selection_highlight(self, old_path, new_path):
+        # (Unchanged)
         for widget in self.gallery_grid_frame.winfo_children():
             if isinstance(widget, tk.Button):
                 try: cmd_str = str(widget['command'])
@@ -383,22 +406,25 @@ class WallpaperApp(tk.Tk):
                 if new_path and new_path in cmd_str: widget.config(relief="solid", borderwidth=2, highlightbackground="blue")
 
     def _gallery_bind_mousewheel(self, widget):
+        # (Unchanged)
         widget.bind("<MouseWheel>", self._gallery_on_mousewheel, add="+")
         widget.bind("<Button-4>", lambda e: self._gallery_on_mousewheel(e, delta=-1), add="+")
         widget.bind("<Button-5>", lambda e: self._gallery_on_mousewheel(e, delta=1), add="+")
         for child in widget.winfo_children(): self._gallery_bind_mousewheel(child)
 
     def _gallery_on_mousewheel(self, event, delta=None):
-        if self.gallery_canvas.yview() == (0.0, 1.0): return
+        # (Unchanged)
+        if self.gallery_canvas.yview() == (0.0, 1.0) and (event.delta > 0 or (delta and delta > 0)): return
         if delta: self.gallery_canvas.yview_scroll(delta, "units")
         elif platform.system() == "Windows": self.gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         else: self.gallery_canvas.yview_scroll(int(-1 * event.delta), "units")
 
+    # --- Core App Actions (unchanged) ---
     def add_prompt_to_history(self, prompt):
         if prompt in self.prompt_history: self.prompt_history.remove(prompt) 
         self.prompt_history.insert(0, prompt)
         self.prompt_history = self.prompt_history[:self.max_history_items]
-        self.save_prompt_history()
+        self.save_prompt_history() 
 
     def on_generate_button_click(self):
         prompt = self.prompt_text_widget.get("1.0", tk.END).strip()
@@ -448,6 +474,7 @@ class WallpaperApp(tk.Tk):
     def set_current_as_wallpaper(self):
         if not self.current_image_path: return messagebox.showwarning("Wallpaper Error", "No image selected.")
         set_wallpaper(self.current_image_path)
+
 
 if __name__ == "__main__":
     app = WallpaperApp()
