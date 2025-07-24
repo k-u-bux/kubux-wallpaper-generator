@@ -146,8 +146,6 @@ class WallpaperApp(tk.Tk):
             self.vertical_paned_position = 400
 
     def save_app_settings(self):
-        # *** FIX APPLIED HERE: USING .sashpos() ***
-        # This is the correct method for the new ttk.PanedWindow widget.
         try:
             settings = {
                 "ui_scale": self.current_font_scale,
@@ -167,37 +165,33 @@ class WallpaperApp(tk.Tk):
         self.destroy() 
 
     def create_widgets(self):
-        # *** FIX APPLIED HERE: USING ttk.PanedWindow and weight option ***
         self.style = ttk.Style()
         self.style.configure('.', font=self.app_font)
         main_container = tk.Frame(self)
         main_container.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # 1. Use the modern ttk.PanedWindow
         self.paned_window = ttk.PanedWindow(main_container, orient="horizontal")
         self.paned_window.pack(fill="both", expand=True, pady=(0, 5))
         
-        # 2. Add panes using the `weight` option to control resizing
         left_pane = ttk.Frame(self.paned_window)
-        self.paned_window.add(left_pane, weight=1) # This pane will expand
+        self.paned_window.add(left_pane, weight=1)
 
         thumbnail_frame_outer = ttk.LabelFrame(self.paned_window, text="Your Wallpaper Collection")
-        self.paned_window.add(thumbnail_frame_outer, weight=0) # This pane has a fixed size
+        self.paned_window.add(thumbnail_frame_outer, weight=0)
 
-        # 3. Repeat for the vertical panes
         self.vertical_paned = ttk.PanedWindow(left_pane, orient="vertical")
         self.vertical_paned.pack(fill="both", expand=True)
 
         self.image_display_frame = ttk.LabelFrame(self.vertical_paned, text="Preview")
-        self.vertical_paned.add(self.image_display_frame, weight=1) # Preview area expands vertically
+        self.vertical_paned.add(self.image_display_frame, weight=1)
 
-        self.generated_image_label = ttk.Label(self.image_display_frame)
+        # Fix for centering the image preview
+        self.generated_image_label = ttk.Label(self.image_display_frame, anchor="center")
         self.generated_image_label.pack(fill="both", expand=True, padx=5, pady=5)
 
         prompt_frame_outer = ttk.LabelFrame(self.vertical_paned, text="Generate New Wallpaper")
-        self.vertical_paned.add(prompt_frame_outer, weight=0) # Prompt area has fixed height
+        self.vertical_paned.add(prompt_frame_outer, weight=0)
 
-        # --- The rest of your widget creation logic is preserved ---
         prompt_frame_inner = tk.Frame(prompt_frame_outer)
         prompt_frame_inner.pack(fill="both", expand=True, padx=5, pady=5)
         self.prompt_text_widget = tk.Text(prompt_frame_inner, height=6, wrap="word", relief="sunken", borderwidth=2, font=self.app_font)
@@ -227,11 +221,32 @@ class WallpaperApp(tk.Tk):
         sliders_frame = tk.Frame(controls_frame)
         sliders_frame.grid(row=0, column=2)
         ttk.Label(sliders_frame, text="UI Size:").pack(side="left")
-        self.scale_slider = ttk.Scale(sliders_frame, from_=0.5, to=2.5, orient="horizontal", command=self.update_ui_scale, value=self.current_font_scale)
+
+        # *** FIX APPLIED HERE: Reverted to tk.Scale and added resolution ***
+        self.scale_slider = tk.Scale(
+            sliders_frame, 
+            from_=0.5, to=2.5, 
+            orient="horizontal", 
+            command=self.update_ui_scale,
+            resolution=0.1,
+            showvalue=0
+        )
+        self.scale_slider.set(self.current_font_scale)
         self.scale_slider.pack(side="left")
         
         ttk.Label(sliders_frame, text="Thumb Size:", padding="20 0 0 0").pack(side="left")
-        self.thumbnail_scale_slider = ttk.Scale(sliders_frame, from_=0.5, to=2.5, orient="horizontal", command=self._gallery_update_thumbnail_scale_callback, value=self.current_thumbnail_scale)
+        
+        # *** FIX APPLIED HERE: Reverted to tk.Scale and added resolution ***
+        self.thumbnail_scale_slider = tk.Scale(
+            sliders_frame, 
+            from_=0.5, 
+            to=2.5, 
+            orient="horizontal", 
+            command=self._gallery_update_thumbnail_scale_callback,
+            resolution=0.1,
+            showvalue=0
+        )
+        self.thumbnail_scale_slider.set(self.current_thumbnail_scale)
         self.thumbnail_scale_slider.pack(side="left")
 
         action_btn_frame = tk.Frame(controls_frame)
@@ -241,8 +256,6 @@ class WallpaperApp(tk.Tk):
         ttk.Button(action_btn_frame, text="Set Wallpaper", command=self.set_current_as_wallpaper).pack(side="left", padx=2)
 
     def set_initial_pane_positions(self):
-        # *** FIX APPLIED HERE: USING .sashpos() ***
-        # This is the correct method for setting the sash on the new ttk.PanedWindow.
         try:
             self.paned_window.sashpos(0, self.horizontal_paned_position)
             self.vertical_paned.sashpos(0, self.vertical_paned_position)
@@ -276,9 +289,15 @@ class WallpaperApp(tk.Tk):
             fw, fh = self.generated_image_label.winfo_width(), self.generated_image_label.winfo_height()
             if fw <= 1 or fh <= 1: return
             
-            img_aspect, frame_aspect = full_img.width / full_img.height, fw / fh
-            if img_aspect > frame_aspect: nw, nh = fw - 10, int((fw - 10) / img_aspect)
-            else: nh, nw = fh - 10, int((fh - 10) * img_aspect)
+            img_aspect = full_img.width / full_img.height
+            frame_aspect = fw / fh
+            
+            if img_aspect > frame_aspect:
+                nw = fw - 10
+                nh = int(nw / img_aspect)
+            else:
+                nh = fh - 10
+                nw = int(nh * img_aspect)
                 
             resized_img = full_img.resize((max(1, nw), max(1, nh)), Image.LANCZOS)
             photo = ImageTk.PhotoImage(resized_img)
@@ -289,7 +308,7 @@ class WallpaperApp(tk.Tk):
             messagebox.showerror("Image Display Error", f"Could not display image: {e}")
             self.current_image_path = None
     
-    # --- Integrated Gallery Methods (All your advanced logic is preserved) ---
+    # --- Integrated Gallery Methods ---
 
     def load_images(self):
         try:
@@ -394,20 +413,17 @@ class WallpaperApp(tk.Tk):
                 if new_path and new_path in cmd_str: widget.config(relief="solid", borderwidth=2, highlightbackground="blue")
 
     def _gallery_bind_mousewheel(self, widget):
-        # Using add="+" ensures we don't overwrite other bindings
         widget.bind("<MouseWheel>", self._gallery_on_mousewheel, add="+")
         widget.bind("<Button-4>", lambda e: self._gallery_on_mousewheel(e), add="+")
         widget.bind("<Button-5>", lambda e: self._gallery_on_mousewheel(e), add="+")
 
     def _gallery_on_mousewheel(self, event):
-        # This improved logic works across platforms (Windows, Linux)
         if platform.system() == "Windows":
             self.gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         elif event.num == 4: # Linux scroll up
              self.gallery_canvas.yview_scroll(-1, "units")
         elif event.num == 5: # Linux scroll down
              self.gallery_canvas.yview_scroll(1, "units")
-
 
     # --- Core App Actions ---
     def add_prompt_to_history(self, prompt):
