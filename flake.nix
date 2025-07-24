@@ -17,7 +17,6 @@
           pillow
           requests
           python-dotenv
-          # Add any other dependencies your script needs
         ]);
         
       in
@@ -39,7 +38,7 @@
             cp kubux-wallpaper-generator.py $out/bin/kubux-wallpaper-generator.py
             chmod +x $out/bin/kubux-wallpaper-generator.py
             
-            # Create the wrapper script
+            # Create the wrapper script that sets the process name properly
             cat > $out/bin/kubux-wallpaper-generator << 'WRAPPER_EOF'
             #!/usr/bin/env bash
             
@@ -60,8 +59,10 @@
                     together
             fi
             
-            # Run the application with the additional Python path
-            exec env PYTHONPATH="$PYTHONPATH_EXTRA:$PYTHONPATH" \
+            # Set process name and run the application
+            # This approach should work better for GNOME icon recognition
+            exec -a kubux-wallpaper-generator env \
+                PYTHONPATH="$PYTHONPATH_EXTRA:$PYTHONPATH" \
                 PYTHON_BIN "SCRIPT_PATH" "$@"
             WRAPPER_EOF
             
@@ -71,7 +72,7 @@
             
             chmod +x $out/bin/kubux-wallpaper-generator
             
-            # Copy desktop file
+            # Update the desktop file to ensure proper StartupWMClass
             cp kubux-wallpaper-generator.desktop $out/share/applications/
             
             # Copy icons to all size directories
@@ -80,6 +81,12 @@
                 cp hicolor/$size/apps/kubux-wallpaper-generator.png $out/share/icons/hicolor/$size/apps/
               fi
             done
+          '';
+          
+          # Add a post-install phase to update icon cache
+          postInstall = ''
+            # Update icon cache
+            ${pkgs.gtk3}/bin/gtk-update-icon-cache -f -t $out/share/icons/hicolor || true
           '';
           
           meta = with pkgs.lib; {
