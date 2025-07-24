@@ -41,31 +41,32 @@
             else
               echo "Warning: hicolor directory not found, icons may not display properly"
             fi
-            
-            # Create a shell wrapper that handles the together dependency
-            cat > $out/bin/kubux-wallpaper-generator << EOF
+
+            # Create a shell wrapper that handles the together dependency           
+            cat > $out/bin/kubux-wallpaper-generator << 'EOF'
             #!/usr/bin/env bash
-            
+
             # Create a temporary directory for pip installs
-            export TMPDIR=\''${TMPDIR:-/tmp}
-            PIP_CACHE_DIR="\$HOME/.cache/pip-kubux"
-            mkdir -p "\$PIP_CACHE_DIR"
+            export TMPDIR=${TMPDIR:-/tmp}
+            PIP_CACHE_DIR="$HOME/.cache/pip-kubux"
+            mkdir -p "$PIP_CACHE_DIR"
             
             # Check if together is installed, install to a local directory if not
-            PYTHONPATH_EXTRA="\$HOME/.local/lib/python3.13/site-packages"
-            mkdir -p "\$PYTHONPATH_EXTRA"
-            
-            if ! PYTHONPATH="\$PYTHONPATH_EXTRA:\$PYTHONPATH" ${pythonWithPackages}/bin/python -c "import together" 2>/dev/null; then
+            PYTHONPATH_EXTRA="$HOME/.local/lib/python3.13/site-packages"
+            mkdir -p "$PYTHONPATH_EXTRA"
+
+            if ! PYTHONPATH="$PYTHONPATH_EXTRA:$PYTHONPATH" ${pythonEnv}/bin/python -c "import together" 2>/dev/null; then
                 echo "Installing together package..."
-                ${pythonWithPackages}/bin/python -m pip install \\
-                    --target "\$PYTHONPATH_EXTRA" \\
-                    --cache-dir "\$PIP_CACHE_DIR" \\
-                    together
+                    ${pythonEnv}/bin/python -m pip install \
+                            --target "$PYTHONPATH_EXTRA" \
+                            --cache-dir "$PIP_CACHE_DIR" \
+                            together
             fi
-            
+
             # Run the application with the additional Python path
-            exec env PYTHONPATH="\$PYTHONPATH_EXTRA:\$PYTHONPATH" \\
-                ${pythonWithPackages}/bin/python "$out/bin/kubux-wallpaper-generator.py" "\$@"
+            # Use exec -a to set the process name for GNOME to recognize
+            exec -a "kubux-wallpaper-generator" env PYTHONPATH="$PYTHONPATH_EXTRA:$PYTHONPATH" \
+                ${pythonEnv}/bin/python "$out/bin/kubux-wallpaper-generator.py" "$@"
             EOF
             
             chmod +x $out/bin/kubux-wallpaper-generator
