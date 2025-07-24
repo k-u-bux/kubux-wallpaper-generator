@@ -15,6 +15,7 @@ import tkinter.font as tkFont
 import json 
 import requests 
 from datetime import datetime # Import datetime
+import math
 
 # Load environment variables
 load_dotenv()
@@ -96,12 +97,368 @@ def download_image(url, save_path):
         messagebox.showerror("Download Error", f"Failed to download image: {e}")
         return False
 
+# --- Virtual Gallery Widget ---
+class VirtualGallery(tk.Frame):
+    def __init__(self, parent, on_image_click=None):
+        super().__init__(parent)
+        self.on_image_click = on_image_click
+        
+        self.image_files = []
+        self.thumbnails_cache = {}  # Cache for loaded thumbnails
+        self.thumbnail_dimensions_cache = {}  # Cache for thumbnail dimensions
+        self.thumbnail_max_size = DEFAULT_THUMBNAIL_DIM
+        self.current_selection = None
+        
+        self.scroll_position = 0
+        self.visible_start = 0
+        self.visible_end = 0
+        
+        # We'll calculate these based on actual thumbnails
+        self.actual_gallery_height = MINIMAL_GALLERY_HEIGHT
+        
+        self.create_widgets()
+        
+    def create_widgets(self):
+        # Canvas for drawing thumbnails
+        self.canvas = tk.Canvas(self, bg="lightgray", height=self.actual_gallery_height)
+        self.canvas.pack(fill="both", expand=True)
+        
+        # Scrollbar
+        self.scrollbar = tk.Scrollbar(self, orient="horizontal", command=self.on_scrollbar)
+        self.scrollbar.pack(side="bottom", fill="x")
+        
+        # Bind events
+        self.canvas.bind("<Configure>", self.on_canvas_configure)
+        self.canvas.bind("<Button-1>", self.on_canvas_click)
+        self.canvas.bind("<Enter>", lambda e: self.canvas.focus_set())
+        
+        # Mouse wheel binding
+        self.canvas.bind("<MouseWheel>", self.on_mousewheel)
+        self.canvas.bind("<Button-4>", lambda e: self.on_mousewheel(e, delta=-1))
+        self.canvas.bind("<Button-5>", lambda e: self.on_mousewheel(e, delta=1))
+        
+        # Keyboard bindings - bind to canvas with focus
+        self.canvas.bind("<Key>", self.on_keypress)
+        self.canvas.bind("<Left>", lambda e: self.scroll_by_thumbnails(-1))
+        self.canvas.bind("<Right>", lambda e: self.scroll_by_thumbnails(1))
+        self.canvas.bind("<Up>", lambda e: self.scroll_by_thumbnails(-5))
+        self.canvas.bind("<Down>", lambda e: self.scroll_by_thumbnails(5))
+        self.canvas.bind("<Prior>", lambda e: self.scroll_by_thumbnails(-20))  # Page Up
+        self.canvas.bind("<Next>", lambda e: self.scroll_by_thumbnails(20))   # Page Down
+        self.canvas.bind("<Home>", lambda e: self.scroll_to_start())
+        self.canvas.bind("<End>", lambda e: self.scroll_to_end())
+        
+        # Make canvas focusable
+        self.canvas.config(takefocus=True)
+        
+    def set_thumbnail_scale(self, scale):
+        """Update thumbnail scale and refresh display."""
+        self.thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * scale)
+        
+        # Clear caches to force regeneration
+        self.thumbnails_cache.clear()
+        self.thumbnail_dimensions_cache.clear()
+        
+        # Recalculate gallery height and refresh
+        self.calculate_gallery_height()
+        self.update_display()
+        
+    def calculate_gallery_height(self):
+        """Calculate the actual height needed for the gallery based on thumbnails."""
+        if not self.image_files:
+            self.actual_gallery_height = MINIMAL_GALLERY_HEIGHT
+            self.canvas.config(height=self.actual_gallery_height)
+            return
+        
+        max_height = 0
+        
+        # Sample a few images to determine the maximum height needed
+        sample_size = min(10, len(self.image_files))
+        for i in range(sample_size):
+            img_path = self.image_files[i]
+            dims = self.get_thumbnail_dimensions(img_path)
+            if dims:
+                max_height = max(max_height, dims[1])
+        
+        # Add padding
+        self.actual_gallery_height = max_height + 10  # 5px top + 5px bottom padding
+        self.canvas.config(height=self.actual_gallery_height)
+        
+    def get_thumbnail_dimensions(self, img_path):
+        """Get thumbnail dimensions from cache or calculate them."""
+        cache_key = f"{img_path}_{self.thumbnail_max_size}"
+        
+        if cache_key not in self.thumbnail_dimensions_cache:
+            try:
+                img = Image.open(img_path)
+                # Calculate thumbnail size while maintaining aspect ratio
+                img.thumbnail((self.thumbnail_max_size, self.thumbnail_max_size))
+                self.thumbnail_dimensions_cache[cache_key] = (img.width, img.height)
+            except Exception as e:
+                print(f"Error calculating thumbnail dimensions for {img_path}: {e}")
+                return None
+                
+        return self.thumbnail_dimensions_cache.get(cache_key)
+        
+    def get_thumbnail(self, img_path):
+        """Get thumbnail from cache or create it."""
+        cache_key = f"{img_path}_{self.thumbnail_max_size}"
+        
+        if cache_key not in self.thumbnails_cache:
+            try:
+                img = Image.open(img_path)
+                img.thumbnail((self.thumbnail_max_size, self.thumbnail_max_size))
+                photo = ImageTk.PhotoImage(img)
+                self.thumbnails_cache[cache_key] = photo
+                # Also cache dimensions
+                self.thumbnail_dimensions_cache[cache_key] = (img.width, img.height)
+            except Exception as e:
+                print(f"Error loading thumbnail for {img_path}: {e}")
+                return None
+                
+        return self.thumbnails_cache.get(cache_key)
+        
+    def load_images(self, image_paths):
+        """Load new image list and refresh display."""
+        self.image_files = image_paths
+        self.thumbnails_cache.clear()
+        self.thumbnail_dimensions_cache.clear()
+        self.scroll_position = 0
+        self.current_selection = None
+        
+        # Recalculate gallery height based on new images
+        self.calculate_gallery_height()
+        self.update_scrollbar()
+        self.update_display()
+        
+    def calculate_thumbnail_x_position(self, index):
+        """Calculate the x position for a thumbnail at given index."""
+        x_pos = 5  # Initial padding
+        
+        for i in range(index):
+            if i < len(self.image_files):
+                dims = self.get_thumbnail_dimensions(self.image_files[i])
+                if dims:
+                    x_pos += dims[0] + 10  # thumbnail width + padding
+                else:
+                    x_pos += self.thumbnail_max_size + 10  # fallback
+                    
+        return x_pos
+        
+    def calculate_total_width(self):
+        """Calculate total width of all thumbnails."""
+        total_width = 10  # Start with padding
+        
+        for img_path in self.image_files:
+            dims = self.get_thumbnail_dimensions(img_path)
+            if dims:
+                total_width += dims[0] + 10  # thumbnail width + spacing
+            else:
+                total_width += self.thumbnail_max_size + 10  # fallback
+                
+        return total_width
+        
+    def find_thumbnail_at_position(self, click_x):
+        """Find which thumbnail is at the given x position."""
+        adjusted_x = click_x + self.scroll_position
+        current_x = 5  # Initial padding
+        
+        for i, img_path in enumerate(self.image_files):
+            dims = self.get_thumbnail_dimensions(img_path)
+            if dims:
+                thumb_width = dims[0]
+            else:
+                thumb_width = self.thumbnail_max_size
+                
+            if current_x <= adjusted_x <= current_x + thumb_width:
+                return i
+                
+            current_x += thumb_width + 10  # Move to next thumbnail
+            
+        return -1
+        
+    def on_canvas_configure(self, event):
+        """Handle canvas resize."""
+        self.update_scrollbar()
+        self.update_display()
+        
+    def on_scrollbar(self, action, position, unit=None):
+        """Handle scrollbar drag and click events."""
+        if action == "moveto":
+            # Direct positioning from scrollbar drag
+            position = float(position)
+            total_width = self.calculate_total_width()
+            canvas_width = self.canvas.winfo_width()
+            max_scroll = max(0, total_width - canvas_width)
+            self.scroll_position = int(position * max_scroll)
+            
+        elif action == "scroll":
+            # Scrollbar arrow clicks
+            delta = int(position)
+            if unit == "units":
+                # Arrow clicks - scroll by pixels
+                self.scroll_by_pixels(delta * 50)
+            elif unit == "pages":
+                # Between thumb and arrow clicks
+                canvas_width = self.canvas.winfo_width()
+                self.scroll_by_pixels(delta * canvas_width // 2)
+            return  # Early return to avoid duplicate updates
+            
+        self.update_scrollbar()
+        self.update_display()
+        
+    def on_keypress(self, event):
+        """Handle key press events for navigation."""
+        # This catches any key that wasn't handled by specific bindings
+        return "break"
+        
+    def scroll_by_thumbnails(self, delta):
+        """Scroll by delta number of thumbnails."""
+        if not self.image_files:
+            return
+            
+        if delta > 0:  # Scroll right
+            # Find average thumbnail width for smoother scrolling
+            avg_width = self.calculate_total_width() / len(self.image_files) if self.image_files else 100
+            scroll_amount = delta * avg_width
+        else:  # Scroll left
+            avg_width = self.calculate_total_width() / len(self.image_files) if self.image_files else 100
+            scroll_amount = delta * avg_width
+            
+        self.scroll_by_pixels(int(scroll_amount))
+        
+    def scroll_by_pixels(self, delta_pixels):
+        """Scroll by delta pixels."""
+        old_position = self.scroll_position
+        self.scroll_position += delta_pixels
+        
+        # Clamp scroll position
+        total_width = self.calculate_total_width()
+        canvas_width = self.canvas.winfo_width()
+        max_scroll = max(0, total_width - canvas_width)
+        self.scroll_position = max(0, min(self.scroll_position, max_scroll))
+        
+        if self.scroll_position != old_position:
+            self.update_scrollbar()
+            self.update_display()
+            
+    def scroll_to_start(self):
+        """Scroll to the beginning."""
+        self.scroll_position = 0
+        self.update_scrollbar()
+        self.update_display()
+        
+    def scroll_to_end(self):
+        """Scroll to the end."""
+        total_width = self.calculate_total_width()
+        canvas_width = self.canvas.winfo_width()
+        max_scroll = max(0, total_width - canvas_width)
+        self.scroll_position = max_scroll
+        self.update_scrollbar()
+        self.update_display()
+        
+    def on_mousewheel(self, event, delta=None):
+        """Handle mouse wheel scrolling."""
+        if delta is not None:  # Linux
+            self.scroll_by_pixels(delta * 50)
+        elif platform.system() == "Windows":
+            self.scroll_by_pixels(int(-1 * (event.delta / 120)) * 50)
+        else:  # macOS
+            self.scroll_by_pixels(int(-1 * event.delta) * 50)
+            
+    def update_scrollbar(self):
+        """Update scrollbar position and size."""
+        if not self.image_files:
+            self.scrollbar.set(0, 1)
+            return
+            
+        canvas_width = self.canvas.winfo_width()
+        total_width = self.calculate_total_width()
+        
+        if total_width <= canvas_width:
+            self.scrollbar.set(0, 1)
+        else:
+            # Calculate scrollbar position
+            scroll_start = self.scroll_position / total_width
+            scroll_end = min(1.0, (self.scroll_position + canvas_width) / total_width)
+            self.scrollbar.set(scroll_start, scroll_end)
+            
+    def update_display(self):
+        """Update the visible thumbnails on canvas."""
+        self.canvas.delete("all")
+        
+        if not self.image_files:
+            return
+            
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        # Draw visible thumbnails
+        current_x = 5  # Start with padding
+        
+        for i, img_path in enumerate(self.image_files):
+            dims = self.get_thumbnail_dimensions(img_path)
+            if not dims:
+                continue
+                
+            thumb_width, thumb_height = dims
+            
+            # Check if this thumbnail is visible
+            thumb_left = current_x - self.scroll_position
+            thumb_right = thumb_left + thumb_width
+            
+            if thumb_right >= 0 and thumb_left <= canvas_width:
+                # Thumbnail is at least partially visible, load and draw it
+                thumbnail = self.get_thumbnail(img_path)
+                
+                if thumbnail:
+                    # Center vertically in the canvas
+                    y = (canvas_height - thumb_height) // 2
+                    
+                    # Draw thumbnail
+                    self.canvas.create_image(thumb_left, y, anchor="nw", image=thumbnail, tags=f"thumb_{i}")
+                    
+                    # Draw selection border if this is the current selection
+                    if self.current_selection == img_path:
+                        x1, y1 = thumb_left - 2, y - 2
+                        x2, y2 = thumb_left + thumb_width + 2, y + thumb_height + 2
+                        self.canvas.create_rectangle(x1, y1, x2, y2, outline="blue", width=2, tags=f"border_{i}")
+                        
+            current_x += thumb_width + 10  # Move to next position
+            
+            # Stop processing if we're well past the visible area
+            if current_x - self.scroll_position > canvas_width + 200:
+                break
+                    
+    def on_canvas_click(self, event):
+        """Handle canvas click to select thumbnail."""
+        if not self.image_files:
+            return
+            
+        # Set focus to enable keyboard navigation
+        self.canvas.focus_set()
+        
+        thumbnail_index = self.find_thumbnail_at_position(event.x)
+        
+        if 0 <= thumbnail_index < len(self.image_files):
+            selected_path = self.image_files[thumbnail_index]
+            self.current_selection = selected_path
+            self.update_display()  # Refresh to show selection
+            
+            if self.on_image_click:
+                self.on_image_click(selected_path)
+
 # --- GUI Application ---
 class WallpaperApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("kubux wallpaper generator")
-        self.className = "kubux-wallpaper-generator"
+        
+        # Set application ID for GNOME
+        try:
+            self.tk.call('wm', 'class', self._w, 'io.github.kubux.wallpaper-generator')
+        except:
+            pass
 
         self.image_files = []
         self.current_image_path = None
@@ -114,31 +471,20 @@ class WallpaperApp(tk.Tk):
         self.app_font = tkFont.Font(family="TkDefaultFont", size=int(self.base_font_size * self.current_font_scale))
 
         # Get the RGB values of 'lightgray' from Tkinter
-        # winfo_rgb returns a tuple of (R, G, B) where each is 0-65535
         r_16bit, g_16bit, b_16bit = self.winfo_rgb("lightgray")
-        
-        # Scale down to 0-255 for PIL (divide by 256 since 65535 is roughly 255 * 256)
         r_8bit = r_16bit // 256
         g_8bit = g_16bit // 256
         b_8bit = b_16bit // 256
-        
         self.pil_lightgray_rgb = (r_8bit, g_8bit, b_8bit)
 
         self.create_widgets()
-        self.load_images() # Call load_images to set initial canvas height based on content
+        self.load_images()
         
         self.geometry(self.initial_geometry)
         self.update_ui_scale(self.current_font_scale) 
 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
-
         self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)
-        
-        # Bind mouse wheel events to the root window for global handling
-        self.bind("<MouseWheel>", self._on_global_mousewheel) # Windows/macOS
-        self.bind("<Button-4>", lambda event: self._on_global_mousewheel(event, delta=-1)) # Linux scroll up
-        self.bind("<Button-5>", lambda event: self._on_global_mousewheel(event, delta=1))  # Linux scroll down
-
 
     def load_prompt_history(self):
         """Loads prompt history from a JSON file."""
@@ -175,12 +521,11 @@ class WallpaperApp(tk.Tk):
                     settings = json.load(f)
                 self.current_font_scale = settings.get("ui_scale", 1.0)
                 self.initial_geometry = settings.get("window_geometry", "1024x768")
-                # Ensure thumbnail scale defaults to 1.0 if not found
                 self.current_thumbnail_scale = settings.get("thumbnail_scale", 1.0) 
             else:
                 self.current_font_scale = 1.0
                 self.initial_geometry = "1024x768"
-                self.current_thumbnail_scale = 1.0 # Default to 1.0
+                self.current_thumbnail_scale = 1.0
         except json.JSONDecodeError as e:
             print(f"Error decoding app settings JSON: {e}. Using default settings.")
             self.current_font_scale = 1.0
@@ -220,13 +565,13 @@ class WallpaperApp(tk.Tk):
         prompt_frame.pack(side="top", fill="x") 
 
         # Configure grid for prompt_frame
-        prompt_frame.grid_columnconfigure(0, weight=0) # Column for labels/buttons, fixed width
-        prompt_frame.grid_columnconfigure(1, weight=1) # Column for text widget, expands
-        prompt_frame.grid_columnconfigure(2, weight=0) # Column for scrollbar, fixed width
+        prompt_frame.grid_columnconfigure(0, weight=0)
+        prompt_frame.grid_columnconfigure(1, weight=1)
+        prompt_frame.grid_columnconfigure(2, weight=0)
         
-        prompt_frame.grid_rowconfigure(0, weight=1) # Row for Image Prompt label and top of text widget
-        prompt_frame.grid_rowconfigure(1, weight=0) # Row for Load Prompt button
-        prompt_frame.grid_rowconfigure(2, weight=0) # Row for Generate button
+        prompt_frame.grid_rowconfigure(0, weight=1)
+        prompt_frame.grid_rowconfigure(1, weight=0)
+        prompt_frame.grid_rowconfigure(2, weight=0)
 
         # "Image Prompt" label
         tk.Label(prompt_frame, text="Image Prompt:", font=self.app_font).grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(0, 5)) 
@@ -249,11 +594,9 @@ class WallpaperApp(tk.Tk):
 
         # "Generate Wallpaper" button
         self.generate_button = tk.Button(prompt_frame, text="Generate", command=self.on_generate_button_click, font=self.app_font)
-        self.generate_button.grid(row=2, column=0, sticky="w", padx=(0, 10), pady=(5,0)) # Added top padding
+        self.generate_button.grid(row=2, column=0, sticky="w", padx=(0, 10), pady=(5,0))
 
-
-        # --- BOTTOM CONTROL FRAME (New single row for buttons and sliders) ---
-        # PACK THIS FIRST WITH side="bottom" TO ENSURE IT'S AT THE VERY BOTTOM
+        # --- BOTTOM CONTROL FRAME ---
         self.bottom_control_frame = tk.Frame(self, padx=10, pady=5)
         self.bottom_control_frame.pack(side="bottom", fill="x", anchor="sw") 
 
@@ -262,15 +605,13 @@ class WallpaperApp(tk.Tk):
         tk.Button(self.bottom_control_frame, text="Add Image", command=self.add_image_manually, font=self.app_font).pack(side="left", padx=(0, 5))
         tk.Button(self.bottom_control_frame, text="Delete Selected", command=self.delete_selected_image, font=self.app_font).pack(side="left", padx=(0, 5))
 
-        # --- Sliders (packed right, within their own sub-frames for side-by-side labels) ---
-
-        # Thumbnail Scale Slider (packed first to appear further left on the right side)
+        # Thumbnail Scale Slider
         thumbnail_scale_subframe = tk.Frame(self.bottom_control_frame)
-        thumbnail_scale_subframe.pack(side="right", padx=(15, 0)) # Pack this sub-frame to the right
+        thumbnail_scale_subframe.pack(side="right", padx=(15, 0))
 
         tk.Label(thumbnail_scale_subframe, text="Thumbnail Scale:", font=self.app_font).pack(side="left", padx=(0, 5))
         self.thumbnail_scale_slider = tk.Scale(
-            thumbnail_scale_subframe, # Parent is now the sub-frame
+            thumbnail_scale_subframe,
             from_=0.5, to_=3.5, resolution=0.1, 
             orient="horizontal",
             command=self._update_thumbnail_scale_callback,
@@ -279,15 +620,15 @@ class WallpaperApp(tk.Tk):
             font=self.app_font 
         )
         self.thumbnail_scale_slider.set(self.current_thumbnail_scale) 
-        self.thumbnail_scale_slider.pack(side="left") # Pack inside sub-frame to the left
+        self.thumbnail_scale_slider.pack(side="left")
 
-        # UI Scale Slider (packed second to appear further right on the right side)
+        # UI Scale Slider
         ui_scale_subframe = tk.Frame(self.bottom_control_frame)
-        ui_scale_subframe.pack(side="right", padx=(5, 0)) # Pack this sub-frame to the right
+        ui_scale_subframe.pack(side="right", padx=(5, 0))
 
         tk.Label(ui_scale_subframe, text="UI Scale:", font=self.app_font).pack(side="left", padx=(0, 5))
         self.scale_slider = tk.Scale(
-            ui_scale_subframe, # Parent is now the sub-frame
+            ui_scale_subframe,
             from_=0.5, to_=3.5, resolution=0.1,
             orient="horizontal",
             command=self.update_ui_scale_callback,
@@ -296,52 +637,25 @@ class WallpaperApp(tk.Tk):
             font=self.app_font 
         )
         self.scale_slider.set(self.current_font_scale) 
-        self.scale_slider.pack(side="left") # Pack inside sub-frame to the left
+        self.scale_slider.pack(side="left")
 
-
-        # --- Image Gallery Section (ABOVE BOTTOM CONTROL FRAME) ---
-        # PACK THIS SECOND WITH side="bottom" SO IT APPEARS ABOVE THE CONTROL FRAME
+        # --- Virtual Image Gallery Section ---
         gallery_frame = tk.LabelFrame(self, text="Your Wallpaper Collection", padx=10, pady=10, font=self.app_font)
         gallery_frame.pack(side="bottom", pady=10, fill="x") 
 
-        # Initialize gallery_canvas with MINIMAL_GALLERY_HEIGHT.
-        # Its height will be updated by load_images based on content.
-        self.gallery_canvas = tk.Canvas(gallery_frame, bg="lightgray", height=MINIMAL_GALLERY_HEIGHT) 
-        self.gallery_canvas.pack(side="top", fill="x", expand=True) # Changed to side="top"
+        # Create virtual gallery
+        self.gallery = VirtualGallery(gallery_frame, on_image_click=self.on_thumbnail_click)
+        self.gallery.pack(fill="both", expand=True)
 
-        gallery_scrollbar = tk.Scrollbar(gallery_frame, orient="horizontal", command=self.gallery_canvas.xview)
-        gallery_scrollbar.pack(side="bottom", fill="x") # Ensures it's full length directly below canvas
-        self.gallery_canvas.configure(xscrollcommand=gallery_scrollbar.set)
-
-        self.gallery_inner_frame = tk.Frame(self.gallery_canvas, bg="lightgray")
-        self.gallery_canvas.create_window((0, 0), window=self.gallery_inner_frame, anchor="nw")
-
-        self.gallery_canvas.bind("<Enter>", self._on_gallery_enter)
-        self.gallery_canvas.bind("<Leave>", self._on_gallery_leave)
-        
-        # Bind keyboard events to the root window (active when canvas is focused)
-        self.bind("<Left>", self._on_arrow_key) 
-        self.bind("<Right>", self._on_arrow_key)
-        self.bind("<Up>", self._on_arrow_key) 
-        self.bind("<Down>", self._on_arrow_key) 
-        self.bind("<Prior>", self._on_arrow_key) 
-        self.bind("<Next>", self._on_arrow_key) 
-        self.bind("<Home>", self._on_arrow_key) 
-        self.bind("<End>", self._on_arrow_key) 
-        
-        # --- Generated Image Display (MIDDLE - TAKES REMAINING SPACE) ---
-        # PACK THIS LAST WITH side="top", expand=True to make it fill the remaining space
-        # Set the background of the image_display_frame itself
+        # --- Generated Image Display ---
         self.image_display_frame = tk.Frame(self, borderwidth=2, relief="groove", padx=10, pady=10, bg="lightgray")
         self.image_display_frame.pack(side="top", pady=10, fill="both", expand=True) 
         
-        # Set the background of the image display label to match the desired "bar" color
-        self.generated_image_label = tk.Label(self.image_display_frame, bg="lightgray") # Set default background
+        self.generated_image_label = tk.Label(self.image_display_frame, bg="lightgray")
         self.generated_image_label.pack(fill="both", expand=True) 
         
         self.preview_label_text = tk.Label(self.image_display_frame, text="Generated/Selected Image Preview", font=self.app_font)
         self.preview_label_text.pack(side="bottom")
-
 
     def update_ui_scale_callback(self, value):
         """Callback for the UI scale slider."""
@@ -351,32 +665,25 @@ class WallpaperApp(tk.Tk):
         """Adjusts the font size of various UI elements based on the scale factor."""
         self.current_font_scale = scale_factor
         new_size = int(self.base_font_size * self.current_font_scale)
-
         self.app_font.config(size=new_size)
 
-        # Update specific labels that might not be caught by generic loops or have dynamic content
+        # Update all UI elements with new font
         self.preview_label_text.config(font=self.app_font)
         
-        # Generic update for children of key frames
         for frame in [self, self.image_display_frame, self.bottom_control_frame]:
             for child_widget in frame.winfo_children():
-                # For LabelFrames and direct Labels (excluding generated_image_label)
                 if isinstance(child_widget, (tk.LabelFrame, tk.Label)) and child_widget != self.generated_image_label:
                     child_widget.config(font=self.app_font)
-                # For Buttons
                 elif isinstance(child_widget, tk.Button):
                     child_widget.config(font=self.app_font)
-                # For Text widget
                 elif isinstance(child_widget, tk.Text):
                     child_widget.config(font=self.app_font)
-                # For Frames containing sliders and their labels
                 elif isinstance(child_widget, tk.Frame) and child_widget.winfo_children():
                     for sub_child in child_widget.winfo_children():
                         if isinstance(sub_child, (tk.Label, tk.Scale)):
                             sub_child.config(font=self.app_font)
 
-        # Explicitly update fonts for prompt controls since they are now in grid
-        # Find the label by its grid position (row 0, column 0)
+        # Update prompt controls
         for child in self.nametowidget(self.prompt_text_widget.winfo_parent()).grid_slaves(row=0, column=0):
             if isinstance(child, tk.Label):
                 child.config(font=self.app_font)
@@ -386,15 +693,13 @@ class WallpaperApp(tk.Tk):
         self.load_prompt_button.config(font=self.app_font)
         self.generate_button.config(font=self.app_font)
 
-
         if self.current_image_path:
             self.display_image(self.current_image_path)
 
     def _update_thumbnail_scale_callback(self, value):
         """Callback for the thumbnail scale slider."""
         self.current_thumbnail_scale = float(value)
-        # load_images will re-calculate and set the canvas height based on actual thumbnail sizes
-        self.load_images() 
+        self.gallery.set_thumbnail_scale(self.current_thumbnail_scale)
 
     def on_image_display_frame_resize(self, event):
         """Called when the image display frame changes size."""
@@ -402,194 +707,62 @@ class WallpaperApp(tk.Tk):
             self.display_image(self.current_image_path)
 
     def load_images(self):
-        """Loads images from the IMAGE_DIR and displays them as thumbnails."""
-        # Clear existing widgets
-        for widget in self.gallery_inner_frame.winfo_children():
-            widget.destroy() 
-
-        # Populate image_files list
+        """Loads images from the IMAGE_DIR and updates the virtual gallery."""
         self.image_files = []
         for filename in os.listdir(IMAGE_DIR):
             if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
                 self.image_files.append(os.path.join(IMAGE_DIR, filename))
 
-        # Sort image files by their filename (which now includes a timestamp)
-        # Use reverse=True to show most recent first (larger timestamp = newer)
+        # Sort by timestamp (newest first)
         self.image_files.sort(reverse=True) 
-
-        self.thumbnails = [] 
-        current_thumb_dim = int(DEFAULT_THUMBNAIL_DIM * self.current_thumbnail_scale)
         
-        max_actual_thumbnail_render_height = 0 # To find the tallest thumbnail after scaling and padding
+        # Update virtual gallery
+        self.gallery.load_images(self.image_files)
 
-        # Create thumbnail labels if images exist
-        for i, img_path in enumerate(self.image_files):
-            try:
-                img = Image.open(img_path)
-                
-                # Use img.thumbnail to scale down while maintaining aspect ratio
-                # The 'current_thumb_dim' applies to the larger dimension.
-                img.thumbnail((current_thumb_dim, current_thumb_dim)) 
-                
-                actual_thumbnail_image_height = img.height # Get the actual height AFTER thumbnailing
-                
-                # Calculate the total vertical space this label will occupy:
-                # Image height + pady top (5) + pady bottom (5) + border top (2) + border bottom (2)
-                # Adding an extra 2px buffer for robustness
-                required_label_height = actual_thumbnail_image_height + 5 + 5 + 2 + 2 + 2 # Total +16 from image height
-                
-                max_actual_thumbnail_render_height = max(max_actual_thumbnail_render_height, required_label_height)
-
-                photo = ImageTk.PhotoImage(img)
-                self.thumbnails.append(photo)
-
-                thumb_label = tk.Label(self.gallery_inner_frame, image=photo, cursor="hand2")
-                thumb_label.image_path = img_path 
-                thumb_label.bind("<Button-1>", self.on_thumbnail_click)
-                thumb_label.pack(side="left", padx=5, pady=5)
-            except Exception as e:
-                print(f"Error loading thumbnail for {img_path}: {e}")
-
-        # Dynamically set canvas height based on images found
-        if self.image_files:
-            # Set canvas height to accommodate the tallest thumbnail found (plus its padding/border/buffer)
-            self.gallery_canvas.config(height=max_actual_thumbnail_render_height) 
-        else:
-            # Minimal height if no thumbnails
-            self.gallery_canvas.config(height=MINIMAL_GALLERY_HEIGHT)
-
-        # Update canvas scrollregion after all children are packed
-        self.gallery_inner_frame.update_idletasks()
-        self.gallery_canvas.config(scrollregion=self.gallery_canvas.bbox("all"))
-
-    def _on_gallery_enter(self, event):
-        """Set focus to the canvas when mouse enters, enabling keyboard scrolling."""
-        self.gallery_canvas.focus_set()
-
-    def _on_gallery_leave(self, event):
-        """Remove focus from the canvas when mouse leaves."""
-        self.focus_set() 
-
-    def _on_global_mousewheel(self, event, delta=None):
-        """
-        Handles mouse wheel events globally and applies them to the gallery canvas
-        if the mouse is currently over the gallery area.
-        """
-        # Get coordinates of the mouse relative to the root window
-        mouse_x, mouse_y = event.x_root, event.y_root
-
-        # Get the bounding box of the gallery_canvas relative to the screen
-        canvas_x1 = self.gallery_canvas.winfo_rootx()
-        canvas_y1 = self.gallery_canvas.winfo_rooty()
-        canvas_x2 = canvas_x1 + self.gallery_canvas.winfo_width()
-        canvas_y2 = canvas_y1 + self.gallery_canvas.winfo_height()
-
-        # Check if the mouse is within the gallery canvas's bounds
-        if (canvas_x1 <= mouse_x <= canvas_x2) and \
-           (canvas_y1 <= mouse_y <= canvas_y2):
-            
-            if delta is not None: # For Linux (Button-4, Button-5 events)
-                self.gallery_canvas.xview_scroll(delta, "units")
-            elif platform.system() == "Windows":
-                self.gallery_canvas.xview_scroll(int(-1*(event.delta/120)), "units")
-            else: # macOS (event.delta is typically +1 or -1)
-                self.gallery_canvas.xview_scroll(int(-1*event.delta), "units")
-            
-            return "break" # Consume the event so it doesn't propagate further
-
-        # If not over the gallery, let the event pass (return None)
-
-    def _on_arrow_key(self, event):
-        """Scrolls the canvas horizontally using arrow keys (Left, Right, Up, Down, Page Up/Down, Home/End)."""
-        # Only scroll if the gallery canvas itself has focus AND there are images to scroll
-        if self.gallery_canvas.focus_get() == self.gallery_canvas and self.image_files:
-            if event.keysym == "Left":
-                self.gallery_canvas.xview_scroll(-1, "units")
-            elif event.keysym == "Right":
-                self.gallery_canvas.xview_scroll(1, "units")
-            elif event.keysym == "Up": # Scroll by 5 thumbnails
-                self.gallery_canvas.xview_scroll(-5, "units")
-            elif event.keysym == "Down": # Scroll by 5 thumbnails
-                self.gallery_canvas.xview_scroll(5, "units")
-            elif event.keysym == "Prior": # Page Up - scroll by 20 thumbnails
-                self.gallery_canvas.xview_scroll(-20, "units")
-            elif event.keysym == "Next": # Page Down - scroll by 20 thumbnails
-                self.gallery_canvas.xview_scroll(20, "units")
-            elif event.keysym == "Home": # Pos1 - go to the beginning
-                self.gallery_canvas.xview_moveto(0.0)
-            elif event.keysym == "End": # Go to the end
-                self.gallery_canvas.xview_moveto(1.0)
-            return "break" # Consume the event
-
-
-    def on_thumbnail_click(self, event):
-        # Remove highlight from previously selected thumbnail
-        for widget in self.gallery_inner_frame.winfo_children():
-            if isinstance(widget, tk.Label) and hasattr(widget, 'image_path'):
-                widget.config(relief="flat", borderwidth=0)
-                
-        selected_path = event.widget.image_path
-        self.display_image(selected_path)
-
-        # Highlight newly selected thumbnail
-        event.widget.config(relief="solid", borderwidth=2, highlightbackground="blue")
-        
-        # Crucial fix for keyboard scrolling: After clicking a thumbnail, ensure the gallery canvas regains focus
-        self.gallery_canvas.focus_set()
-
+    def on_thumbnail_click(self, image_path):
+        """Handle thumbnail selection from virtual gallery."""
+        self.display_image(image_path)
 
     def display_image(self, image_path):
         try:
             full_img = Image.open(image_path)
             img_width, img_height = full_img.size
 
-            # Get the current dimensions of the image_display_frame
             frame_width = self.image_display_frame.winfo_width()
             frame_height = self.image_display_frame.winfo_height()
 
-            # Add padding for the label below the image, and internal padding of the frame
             label_height = self.preview_label_text.winfo_reqheight() 
             if self.preview_label_text.winfo_height() > 1:
                 label_height = self.preview_label_text.winfo_height()
 
-            # Calculate available space within the frame for the image
             available_width = frame_width - (self.image_display_frame.cget('padx') * 2)
             available_height = frame_height - (self.image_display_frame.cget('pady') * 2) - label_height
 
             if available_width <= 0 or available_height <= 0:
-                # Fallback dimensions if the frame hasn't fully rendered yet, or is too small
                 available_width = 800
                 available_height = 600
 
             img_aspect = img_width / img_height
             available_aspect = available_width / available_height
 
-            new_img_width, new_img_height = available_width, available_height
-
-            # Determine new dimensions to fit image while maintaining aspect ratio
             if img_aspect > available_aspect:
                 new_img_height = int(available_width / img_aspect)
+                new_img_width = available_width
             else:
                 new_img_width = int(available_height * img_aspect)
+                new_img_height = available_height
 
-            # Ensure new dimensions are at least 1x1 to prevent errors
             new_img_width = max(1, new_img_width)
             new_img_height = max(1, new_img_height)
 
-            # Resize the original image to fit within the calculated dimensions
             resized_img = full_img.resize((new_img_width, new_img_height), Image.LANCZOS)
-
-            # Create a new blank image with the exact Tkinter 'lightgray' RGB color
             final_image = Image.new("RGB", (available_width, available_height), color=self.pil_lightgray_rgb)
 
-            # Calculate paste coordinates to center the resized image on the background
             paste_x = (available_width - new_img_width) // 2
             paste_y = (available_height - new_img_height) // 2
 
-            # Paste the resized image onto the background
             final_image.paste(resized_img, (paste_x, paste_y))
 
-            # Convert to PhotoImage and display
             photo = ImageTk.PhotoImage(final_image)
             self.generated_image_label.config(image=photo)
             self.generated_image_label.image = photo 
@@ -613,45 +786,38 @@ class WallpaperApp(tk.Tk):
         """Opens a new window to select a prompt from history."""
         history_window = tk.Toplevel(self)
         history_window.title("Select Prompt from History")
-        history_window.transient(self) # Make it a transient window relative to main window
-        history_window.grab_set() # Make it modal
+        history_window.transient(self)
+        history_window.grab_set()
 
         frame = tk.Frame(history_window, padx=10, pady=10)
         frame.pack(fill="both", expand=True)
 
         tk.Label(frame, text="Recent Prompts:", font=self.app_font).pack(pady=(0, 5))
 
-        # Use a Combobox for selection in the history window
         history_combobox = ttk.Combobox(
             frame,
             values=self.prompt_history,
             font=self.app_font,
-            width=80 # Set a reasonable width
+            width=80
         )
         history_combobox.pack(fill="x", expand=True, pady=(0, 10))
 
         def on_select():
             selected_prompt = history_combobox.get()
             if selected_prompt:
-                self.prompt_text_widget.delete("1.0", tk.END) # Clear current text
-                self.prompt_text_widget.insert("1.0", selected_prompt) # Insert selected prompt
+                self.prompt_text_widget.delete("1.0", tk.END)
+                self.prompt_text_widget.insert("1.0", selected_prompt)
             history_window.destroy()
 
         select_button = tk.Button(frame, text="Load Selected", command=on_select, font=self.app_font)
         select_button.pack(pady=(5,0))
 
-        # Automatically select the first item if history is not empty
         if self.prompt_history:
             history_combobox.set(self.prompt_history[0])
 
-
     def on_generate_button_click(self, event=None):
-        # Get text from the Text widget
         prompt = self.prompt_text_widget.get("1.0", tk.END).strip()
         
-        # If the event is a <Return> key press, and the prompt text ends with a newline
-        # due to the key press, remove it to avoid empty lines being part of the prompt.
-        # This is a common behavior with tk.Text and <Return> binding.
         if event and event.keysym == "Return" and prompt.endswith("\n"):
             prompt = prompt[:-1].strip()
 
@@ -665,17 +831,13 @@ class WallpaperApp(tk.Tk):
         def run_generation():
             image_url = generate_image(prompt)
             if image_url:
-                # Use a timestamp and UUID for unique and sortable filenames
-                timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S_%f') # YYYYMMDD_HHMMSS_microseconds
-                # Modified naming scheme: timestamp_type_uuid.ext
+                timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
                 filename = f"{timestamp_str}_generated_{uuid.uuid4().hex}.png"
                 save_path = os.path.join(IMAGE_DIR, filename)
                 if download_image(image_url, save_path):
                     self.display_image(save_path)
                     self.load_images() 
                     self.add_prompt_to_history(prompt) 
-                else:
-                    pass
             self.generate_button.config(text="Generate", state="normal")
 
         thread = threading.Thread(target=run_generation)
@@ -688,10 +850,8 @@ class WallpaperApp(tk.Tk):
         )
         if file_path:
             try:
-                # Use a timestamp and UUID for unique and sortable filenames
                 timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
                 original_ext = os.path.splitext(file_path)[1]
-                # Modified naming scheme: timestamp_type_uuid.ext
                 filename = f"{timestamp_str}_manual_{uuid.uuid4().hex}{original_ext}"
                 destination_path = os.path.join(IMAGE_DIR, filename)
                 import shutil
