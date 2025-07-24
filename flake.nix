@@ -28,65 +28,36 @@
           src = ./.;
           
           buildInputs = [ pythonEnv ];
+          nativeBuildInputs = [ pkgs.makeWrapper ];
           
           installPhase = ''
             mkdir -p $out/bin
             mkdir -p $out/share/applications
-            mkdir -p $out/share/icons/hicolor/{16x16,22x22,24x24,32x32,48x48,64x64,128x128,256x256,512x512}/apps
+            mkdir -p $out/share/icons/hicolor/{16x16,22x22,24x24,32x32,48x48,64x64,128x128,256x256}/apps
             
             # Copy the Python script
             cp kubux-wallpaper-generator.py $out/bin/kubux-wallpaper-generator.py
             chmod +x $out/bin/kubux-wallpaper-generator.py
             
-            # Create the wrapper script that sets the process name properly
-            cat > $out/bin/kubux-wallpaper-generator << 'WRAPPER_EOF'
-            #!/usr/bin/env bash
+            # Create wrapper using makeWrapper
+            makeWrapper ${pythonEnv}/bin/python $out/bin/kubux-wallpaper-generator \
+              --add-flags "$out/bin/kubux-wallpaper-generator.py" \
+              --set-default TMPDIR "/tmp" \
+              --run 'mkdir -p "$HOME/.cache/pip-kubux"' \
+              --run 'mkdir -p "$HOME/.local/lib/python3.13/site-packages"' \
+              --run 'export PYTHONPATH_EXTRA="$HOME/.local/lib/python3.13/site-packages"' \
+              --run 'if ! PYTHONPATH="$PYTHONPATH_EXTRA:$PYTHONPATH" python -c "import together" 2>/dev/null; then echo "Installing together package..."; python -m pip install --target "$PYTHONPATH_EXTRA" --cache-dir "$HOME/.cache/pip-kubux" together; fi' \
+              --prefix PYTHONPATH : '$HOME/.local/lib/python3.13/site-packages'
             
-            # Create a temporary directory for pip installs
-            export TMPDIR=''${TMPDIR:-/tmp}
-            PIP_CACHE_DIR="$HOME/.cache/pip-kubux"
-            mkdir -p "$PIP_CACHE_DIR"
-            
-            # Check if together is installed, install to a local directory if not
-            PYTHONPATH_EXTRA="$HOME/.local/lib/python3.13/site-packages"
-            mkdir -p "$PYTHONPATH_EXTRA"
-            
-            if ! PYTHONPATH="$PYTHONPATH_EXTRA:$PYTHONPATH" PYTHON_BIN -c "import together" 2>/dev/null; then
-                echo "Installing together package..."
-                PYTHON_BIN -m pip install \
-                    --target "$PYTHONPATH_EXTRA" \
-                    --cache-dir "$PIP_CACHE_DIR" \
-                    together
-            fi
-            
-            # Set process name and run the application
-            # This approach should work better for GNOME icon recognition
-            exec -a kubux-wallpaper-generator env \
-                PYTHONPATH="$PYTHONPATH_EXTRA:$PYTHONPATH" \
-                PYTHON_BIN "SCRIPT_PATH" "$@"
-            WRAPPER_EOF
-            
-            # Replace placeholders in the wrapper
-            sed -i "s|PYTHON_BIN|${pythonEnv}/bin/python|g" $out/bin/kubux-wallpaper-generator
-            sed -i "s|SCRIPT_PATH|$out/bin/kubux-wallpaper-generator.py|g" $out/bin/kubux-wallpaper-generator
-            
-            chmod +x $out/bin/kubux-wallpaper-generator
-            
-            # Update the desktop file to ensure proper StartupWMClass
+            # Copy desktop file
             cp kubux-wallpaper-generator.desktop $out/share/applications/
             
             # Copy icons to all size directories
-            for size in 16x16 22x22 24x24 32x32 48x48 64x64 128x128 256x256 512x512; do
+            for size in 16x16 22x22 24x24 32x32 48x48 64x64 128x128 256x256; do
               if [ -f hicolor/$size/apps/kubux-wallpaper-generator.png ]; then
                 cp hicolor/$size/apps/kubux-wallpaper-generator.png $out/share/icons/hicolor/$size/apps/
               fi
             done
-          '';
-          
-          # Add a post-install phase to update icon cache
-          postInstall = ''
-            # Update icon cache
-            ${pkgs.gtk3}/bin/gtk-update-icon-cache -f -t $out/share/icons/hicolor || true
           '';
           
           meta = with pkgs.lib; {
