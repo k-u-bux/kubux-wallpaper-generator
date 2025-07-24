@@ -103,7 +103,6 @@ class WallpaperApp(tk.Tk):
         self.title("kubux wallpaper generator")
         self.className = "kubux-wallpaper-generator"
 
-
         self.image_files = []
         self.current_image_path = None
         self.max_history_items = 25 
