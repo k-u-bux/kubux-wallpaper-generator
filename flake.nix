@@ -11,11 +11,13 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         
-        # Define Python environment with basic packages
+        # Define Python environment with all required packages
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           tkinter
           pillow
           requests
+          python-dotenv
+          # Add any other dependencies your script needs
         ]);
         
       in
