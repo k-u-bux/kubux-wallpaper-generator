@@ -101,6 +101,7 @@ class WallpaperApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("kubux wallpaper generator")
+        self.className = "kubux-wallpaper-generator"
 
         self.image_files = []
         self.current_image_path = None

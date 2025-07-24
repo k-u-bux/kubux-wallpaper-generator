@@ -8,3 +8,4 @@ Type=Application
 Categories=Graphics;Photography;
 Keywords=wallpaper;AI;generator;background;
 StartupNotify=true
+StartupWMClass=kubux-wallpaper-generator
