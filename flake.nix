@@ -46,7 +46,7 @@
               --run 'mkdir -p "$HOME/.cache/pip-kubux"' \
               --run 'mkdir -p "$HOME/.local/lib/python3.13/site-packages"' \
               --run 'export PYTHONPATH_EXTRA="$HOME/.local/lib/python3.13/site-packages"' \
-              --run 'if ! PYTHONPATH="$PYTHONPATH_EXTRA:$PYTHONPATH" python -c "import together" 2>/dev/null; then echo "Installing together package..."; python -m pip install --target "$PYTHONPATH_EXTRA" --cache-dir "$HOME/.cache/pip-kubux" together; fi' \
+              --run 'if ! PYTHONPATH="$PYTHONPATH_EXTRA:$PYTHONPATH" ${pythonEnv}/bin/python -c "import together" 2>/dev/null; then echo "Installing together package..."; ${pythonEnv}/bin/python -m pip install --target "$PYTHONPATH_EXTRA" --cache-dir "$HOME/.cache/pip-kubux" together; fi' \
               --prefix PYTHONPATH : '$HOME/.local/lib/python3.13/site-packages'
             
             # Copy desktop file
