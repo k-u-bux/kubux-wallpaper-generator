@@ -104,12 +104,12 @@ class WallpaperApp(tk.Tk):
 
         self.image_files = []
         self.current_image_path = None
-        self.max_history_items = 15 
+        self.max_history_items = 25 
 
         self.load_prompt_history()
         self.load_app_settings()
 
-        self.base_font_size = 10 
+        self.base_font_size = 12 
         self.app_font = tkFont.Font(family="TkDefaultFont", size=int(self.base_font_size * self.current_font_scale))
 
         # Get the RGB values of 'lightgray' from Tkinter
@@ -247,7 +247,7 @@ class WallpaperApp(tk.Tk):
         self.load_prompt_button.grid(row=1, column=0, sticky="w", padx=(0, 10))
 
         # "Generate Wallpaper" button
-        self.generate_button = tk.Button(prompt_frame, text="Generate Wallpaper", command=self.on_generate_button_click, font=self.app_font)
+        self.generate_button = tk.Button(prompt_frame, text="Generate", command=self.on_generate_button_click, font=self.app_font)
         self.generate_button.grid(row=2, column=0, sticky="w", padx=(0, 10), pady=(5,0)) # Added top padding
 
 
@@ -265,16 +265,16 @@ class WallpaperApp(tk.Tk):
 
         # Thumbnail Scale Slider (packed first to appear further left on the right side)
         thumbnail_scale_subframe = tk.Frame(self.bottom_control_frame)
-        thumbnail_scale_subframe.pack(side="right", padx=(5, 0)) # Pack this sub-frame to the right
+        thumbnail_scale_subframe.pack(side="right", padx=(15, 0)) # Pack this sub-frame to the right
 
         tk.Label(thumbnail_scale_subframe, text="Thumbnail Scale:", font=self.app_font).pack(side="left", padx=(0, 5))
         self.thumbnail_scale_slider = tk.Scale(
             thumbnail_scale_subframe, # Parent is now the sub-frame
-            from_=0.5, to_=2.5, resolution=0.1, 
+            from_=0.5, to_=3.5, resolution=0.1, 
             orient="horizontal",
             command=self._update_thumbnail_scale_callback,
             length=150, 
-            showvalue=True,
+            showvalue=False,
             font=self.app_font 
         )
         self.thumbnail_scale_slider.set(self.current_thumbnail_scale) 
@@ -287,11 +287,11 @@ class WallpaperApp(tk.Tk):
         tk.Label(ui_scale_subframe, text="UI Scale:", font=self.app_font).pack(side="left", padx=(0, 5))
         self.scale_slider = tk.Scale(
             ui_scale_subframe, # Parent is now the sub-frame
-            from_=0.7, to_=2.5, resolution=0.1,
+            from_=0.5, to_=3.5, resolution=0.1,
             orient="horizontal",
             command=self.update_ui_scale_callback,
             length=150, 
-            showvalue=True,
+            showvalue=False,
             font=self.app_font 
         )
         self.scale_slider.set(self.current_font_scale) 
@@ -675,7 +675,7 @@ class WallpaperApp(tk.Tk):
                     self.add_prompt_to_history(prompt) 
                 else:
                     pass
-            self.generate_button.config(text="Generate Wallpaper", state="normal")
+            self.generate_button.config(text="Generate", state="normal")
 
         thread = threading.Thread(target=run_generation)
         thread.start()
