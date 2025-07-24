@@ -726,4 +726,5 @@ class WallpaperApp(tk.Tk):
 
 if __name__ == "__main__":
     app = WallpaperApp()
+    app.tk.call('wm', 'iconname', app._w, 'kubux-wallpaper-generator')
     app.mainloop()
