@@ -171,88 +171,60 @@ class WallpaperApp(tk.Tk):
         self.destroy() 
 
     def create_widgets(self):
+        # (Unchanged)
         self.style = ttk.Style()
-        self.style.configure('.', font=self.app_font)
+        self.style.configure('.', font=self.app_font) 
         main_container = tk.Frame(self)
         main_container.pack(fill="both", expand=True, padx=5, pady=5)
-
-        # 1. Use ttk.PanedWindow, the modern, themed widget
-        self.paned_window = ttk.PanedWindow(main_container, orient="horizontal")
+        self.paned_window = tk.PanedWindow(main_container, orient="horizontal", sashrelief="raised", sashwidth=10)
         self.paned_window.pack(fill="both", expand=True, pady=(0, 5))
-
-        # 2. Create the child frames. We can use ttk.Frame for consistency.
-        left_pane = ttk.Frame(self.paned_window)
-        thumbnail_frame = ttk.LabelFrame(self.paned_window, text="Your Wallpaper Collection", style='TLabelframe')
-        
-        # 3. Add panes with the 'weight' option to control resizing.
-        #    weight=1 means "this pane should expand"
-        #    weight=0 (default) means "this pane should not expand"
-        self.paned_window.add(left_pane, weight=1)
-        self.paned_window.add(thumbnail_frame, weight=0)
-
-        # 4. Use ttk.PanedWindow for the vertical panes as well for consistency.
-        self.vertical_paned = ttk.PanedWindow(left_pane, orient="vertical")
+        left_pane = tk.Frame(self.paned_window)
+        self.paned_window.add(left_pane, minsize=400)
+        self.vertical_paned = tk.PanedWindow(left_pane, orient="vertical", sashrelief="raised", sashwidth=10)
         self.vertical_paned.pack(fill="both", expand=True)
-
-        # 5. Build the rest of the UI inside the correct panes
-        self.image_display_frame = ttk.LabelFrame(self.vertical_paned, text="Preview")
-        self.vertical_paned.add(self.image_display_frame, weight=1) # The preview should stretch vertically
-
-        self.generated_image_label = ttk.Label(self.image_display_frame)
+        self.image_display_frame = tk.LabelFrame(self.vertical_paned, text="Preview", font=self.app_font)
+        self.vertical_paned.add(self.image_display_frame, minsize=200)
+        self.generated_image_label = tk.Label(self.image_display_frame)
         self.generated_image_label.pack(fill="both", expand=True, padx=5, pady=5)
-
-        prompt_frame = ttk.LabelFrame(self.vertical_paned, text="Generate New Wallpaper")
-        self.vertical_paned.add(prompt_frame, weight=0) # Prompt area has fixed height
-
+        prompt_frame = tk.LabelFrame(self.vertical_paned, text="Generate New Wallpaper", font=self.app_font)
+        self.vertical_paned.add(prompt_frame, minsize=100)
         self.prompt_text_widget = tk.Text(prompt_frame, height=6, wrap="word", font=self.app_font)
         self.prompt_text_widget.pack(fill="both", expand=True, padx=5, pady=5)
         self.prompt_text_widget.bind("<Return>", lambda e: self.on_generate_button_click())
-
-        # (The rest of the widgets for the thumbnail_frame and controls_frame remain the same,
-        #  but they should be put inside 'thumbnail_frame' instead of being added to the paned window directly)
-        
+        thumbnail_frame = tk.LabelFrame(self.paned_window, text="Your Wallpaper Collection", font=self.app_font)
+        self.paned_window.add(thumbnail_frame, minsize=250)
         self.gallery_canvas = tk.Canvas(thumbnail_frame, bg="lightgray")
         self.gallery_canvas.pack(side="left", fill="both", expand=True)
-        self.gallery_scrollbar = ttk.Scrollbar(thumbnail_frame, orient="vertical", command=self.gallery_canvas.yview)
-        # ^ Switched to ttk.Scrollbar for consistency
+        self.gallery_scrollbar = tk.Scrollbar(thumbnail_frame, orient="vertical", command=self.gallery_canvas.yview)
         self.gallery_scrollbar.pack(side="right", fill="y")
         self.gallery_canvas.configure(yscrollcommand=self.gallery_scrollbar.set)
-        
+        # The frame is placed at 0,0 NW. IT will be full-width. The GRID INSIDE it will handle centering.
         self.gallery_grid_frame = tk.Frame(self.gallery_canvas, bg="lightgray")
         self.gallery_canvas.create_window((0, 0), window=self.gallery_grid_frame, anchor="nw")
-
         self.gallery_canvas.bind("<Configure>", self._gallery_on_canvas_configure)
         self._gallery_bind_mousewheel(self)
-
-        # ... rest of the create_widgets method using ttk widgets where appropriate ...
-        # (This section needs conversion from tk to ttk for buttons and labels)
-
-        controls_frame = ttk.Frame(main_container)
+        controls_frame = tk.Frame(main_container)
         controls_frame.pack(fill="x", pady=(5, 0))
         controls_frame.grid_columnconfigure((1, 3), weight=1)
-
-        self.generate_button = ttk.Button(controls_frame, text="Generate", command=self.on_generate_button_click)
+        self.generate_button = tk.Button(controls_frame, text="Generate", command=self.on_generate_button_click, font=self.app_font)
         self.generate_button.grid(row=0, column=0, sticky="w")
-        
-        center_block = ttk.Frame(controls_frame)
+        center_block = tk.Frame(controls_frame)
         center_block.grid(row=0, column=2)
-        ttk.Label(center_block, text="UI Size:").pack(side="left")
-
-        # The tk.Scale widgets should be changed to ttk.Scale for consistency
-        self.scale_slider = ttk.Scale(center_block, from_=0.5, to_=2.5, orient="horizontal", command=self.update_ui_scale)
+        tk.Label(center_block, text="UI Size:", font=self.app_font).pack(side="left")
+        self.scale_slider = tk.Scale(center_block, from_=0.5, to_=2.5, resolution=0.1, orient="horizontal", showvalue=False, length=100)
         self.scale_slider.set(self.current_font_scale)
+        self.scale_slider.config(command=self.update_ui_scale)
         self.scale_slider.pack(side="left", padx=(0, 20))
-        
-        ttk.Label(center_block, text="Thumb Size:").pack(side="left")
-        self.thumbnail_scale_slider = ttk.Scale(center_block, from_=0.5, to_=2.5, orient="horizontal", command=self._gallery_update_thumbnail_scale_callback)
+        tk.Label(center_block, text="Thumb Size:", font=self.app_font).pack(side="left")
+        self.thumbnail_scale_slider = tk.Scale(center_block, from_=0.5, to_=2.5, resolution=0.1, orient="horizontal", showvalue=False, length=100)
         self.thumbnail_scale_slider.set(self.current_thumbnail_scale)
+        self.thumbnail_scale_slider.config(command=self._gallery_update_thumbnail_scale_callback)
         self.thumbnail_scale_slider.pack(side="left")
-        
-        right_block = ttk.Frame(controls_frame)
+        right_block = tk.Frame(controls_frame)
         right_block.grid(row=0, column=4, sticky="e")
-        ttk.Button(right_block, text="Add", command=self.add_image_manually).pack(side="left", padx=(0, 5))
-        ttk.Button(right_block, text="Del", command=self.delete_selected_image).pack(side="left", padx=(0, 5))
-        ttk.Button(right_block, text="Set", command=self.set_current_as_wallpaper).pack(side="left")
+        tk.Button(right_block, text="Add", command=self.add_image_manually, font=self.app_font).pack(side="left", padx=(0, 5))
+        tk.Button(right_block, text="Del", command=self.delete_selected_image, font=self.app_font).pack(side="left", padx=(0, 5))
+        tk.Button(right_block, text="Set", command=self.set_current_as_wallpaper, font=self.app_font).pack(side="left")
 
     def set_initial_pane_positions(self):
         # (Unchanged)
