@@ -111,7 +111,8 @@ class WallpaperApp(tk.Tk):
         self.set_initial_pane_positions()
         self.load_images()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
-        self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)
+        self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)        
+        self.gallery_canvas.bind("<Configure>", self._gallery_on_canvas_configure)
 
     def load_prompt_history(self):
         try:
@@ -205,7 +206,6 @@ class WallpaperApp(tk.Tk):
         self.gallery_grid_frame = tk.Frame(self.gallery_canvas)
         self.gallery_canvas.create_window((0, 0), window=self.gallery_grid_frame, anchor="nw")
         
-        self.gallery_canvas.bind("<Configure>", self._gallery_on_canvas_configure)
         self._gallery_bind_mousewheel(self)
 
         controls_frame = tk.Frame(self)
