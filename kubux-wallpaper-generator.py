@@ -97,11 +97,30 @@ def download_image(url, file_name):
         messagebox.showerror("Download Error", f"Failed to download image: {e}")
         return None
 
-def unique_name(file_path,mode):
-    base, ext = os.path.splitext(file_path)
-    uniq_id = base64.b64encode(secrets.token_bytes(18)).decode('ascii')
-    return f"{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}_{mode}_{uniq_id}{ext}"
+def unique_name(original_path, category):
+    """
+    Generates a unique filename using timestamp, category, and a random part,
+    preserving the original extension. Ensures filename is suitable for various file systems by sanitizing.
+    """
+    _, ext = os.path.splitext(original_path)
+    # Using microseconds for very high uniqueness in the timestamp
+    timestamp_str = datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')
 
+    # Generate a unique, random string.
+    # We use secrets.token_urlsafe(16) which produces 16 random bytes, then URL-safe Base64 encodes them.
+    # This *can* produce '/' and '+' characters, which are problematic for filenames.
+    random_raw_part = secrets.token_urlsafe(18)
+
+    # --- CRITICAL FIX: Sanitize the random part to remove/replace problematic filename characters ---
+    # Replace '/' with '_' and '+' with '-' to make the string filesystem-safe.
+    sanitized_random_part = random_raw_part.replace('/', '_').replace('+', '-')
+    # ------------------------------------------------------------------------------------------------
+
+    # Combine parts to form the base filename
+    base_name = f"{timestamp_str}_{category}_{sanitized_random_part}"
+
+    # Return the full unique filename with the original extension
+    return f"{base_name}{ext}"
 
 # --- GUI Application ---
 
@@ -558,7 +577,7 @@ class WallpaperApp(tk.Tk):
         generate_btn_frame = tk.Frame(controls_frame)
         generate_btn_frame.grid(row=0, column=0, sticky="w")
         self.generate_button = ttk.Button(generate_btn_frame, text="Generate", command=self.on_generate_button_click)
-        self.generate_button.pack(side="left", padx=(0,2))
+        self.generate_button.pack(side="left", padx=(2,24))
         self.history_button = ttk.Button(generate_btn_frame, text="History", command=self._show_prompt_history)
         self.history_button.pack(side="left")
 
@@ -586,9 +605,9 @@ class WallpaperApp(tk.Tk):
 
         action_btn_frame = tk.Frame(controls_frame)
         action_btn_frame.grid(row=0, column=4, sticky="e")
-        ttk.Button(action_btn_frame, text="Add", command=self.add_image_manually).pack(side="left", padx=2)
-        ttk.Button(action_btn_frame, text="Delete", command=self.delete_selected_image).pack(side="left", padx=2)
-        ttk.Button(action_btn_frame, text="Set Wallpaper", command=self.set_current_as_wallpaper).pack(side="left", padx=2)
+        ttk.Button(action_btn_frame, text="Delete", command=self.delete_selected_image).pack(side="left", padx=24)
+        ttk.Button(action_btn_frame, text="Add", command=self.add_image_manually).pack(side="left", padx=24)
+        ttk.Button(action_btn_frame, text="Set Wallpaper", command=self.set_current_as_wallpaper).pack(side="left", padx=(24,2))
 
     def set_initial_pane_positions(self):
         try:
@@ -899,49 +918,51 @@ class WallpaperApp(tk.Tk):
 #        except Exception as e: messagebox.showerror("File Error", f"Failed to add image: {e}")
 
     def add_multiple_images_as_symlinks(self, original_paths):
-        """
-        Adds multiple images to IMAGE_DIR as symlinks, ensuring unique names.
-        This method is called by the ImagePickerDialog after selection.
-        """
-        if not original_paths:
-            return # No files selected
-
-        for file_path in original_paths:
-            try:
-                # Ensure the original file exists before trying to symlink
-                if not os.path.exists(file_path):
-                    print(f"Warning: Original file not found, skipping: {file_path}")
-                    continue
-
-                file_name = unique_name(file_path, "manual") # Reuse unique_name for consistent naming
-                dest = os.path.join(IMAGE_DIR, file_name)
-
-                # Optional: Check if a symlink to this specific file already exists to prevent duplicates
-                # This check makes sure you don't add the same original file twice under different symlink names
-                # if a user manually adds it again after it was already linked.
-                is_already_linked = False
-                for existing_linked_file in os.listdir(IMAGE_DIR):
-                    full_existing_link_path = os.path.join(IMAGE_DIR, existing_linked_file)
-                    if os.path.islink(full_existing_link_path) and os.path.realpath(full_existing_link_path) == os.path.realpath(file_path):
-                        print(f"Skipping: {file_path} is already linked as {existing_linked_file}")
-                        is_already_linked = True
-                        break
-                if is_already_linked:
-                    continue
-
-                # If a file/symlink with the generated name already exists but points elsewhere or is not a symlink,
-                # this unique_name should prevent collisions in practice, but a robust check would be here.
-                # Given unique_name uses current time + random bytes, collisions are extremely unlikely.
-
-                os.symlink(file_path, dest)
-                print(f"Symlinked {file_path} to {dest}")
-            except Exception as e:
-                print(f"Warning: Failed to add image '{os.path.basename(file_path)}' due to symlink error: {e}")
-
-        self.load_images() # Reload main gallery after all additions
-        # After adding, if you want to select the first added image, you'd need to
-        # keep track of the generated 'dest' paths and call _gallery_on_thumbnail_click.
-        # For simplicity now, just reloading the gallery is sufficient.
+           """
+           Adds multiple images to IMAGE_DIR as symlinks, ensuring unique names.
+           This method is called by the ImagePickerDialog after selection.
+           """
+           if not original_paths:
+               print("DEBUG: No files selected for symlinking. Returning.")
+               return # No files selected
+    
+           print(f"DEBUG: Starting symlink process for {len(original_paths)} files.")
+           for i, file_path in enumerate(original_paths):
+               print(f"\nDEBUG: --- Processing file {i+1}/{len(original_paths)}: {file_path} ---")
+               try:
+                   # Ensure the original file exists before trying to symlink
+                   if not os.path.exists(file_path):
+                       print(f"WARNING: Original file not found, skipping: {file_path}")
+                       continue
+    
+                   file_name = unique_name(file_path, "manual") # Reuse unique_name for consistent naming
+                   dest = os.path.join(IMAGE_DIR, file_name)
+                   print(f"DEBUG: Proposed symlink destination: {dest}")
+    
+                   # Check if a symlink to this specific file already exists
+                   is_already_linked = False
+                   for existing_linked_file in os.listdir(IMAGE_DIR):
+                       full_existing_link_path = os.path.join(IMAGE_DIR, existing_linked_file)
+                       if os.path.islink(full_existing_link_path) and os.path.realpath(full_existing_link_path) == os.path.realpath(file_path):
+                           print(f"DEBUG: DUPLICATE DETECTED: {file_path} is already linked as {existing_linked_file}. Skipping.")
+                           is_already_linked = True
+                           break
+                   
+                   if is_already_linked:
+                       continue # Skip to next file if duplicate found
+    
+                   # If we reach here, the file is not a duplicate, attempt to create symlink
+                   print(f"DEBUG: Attempting to create symlink: '{file_path}' -> '{dest}'")
+                   os.symlink(file_path, dest)
+                   print(f"SUCCESS: Symlinked {file_path} to {dest}")
+    
+               except Exception as e:
+                   # Catch any error during symlink creation
+                   print(f"ERROR: Failed to add image '{os.path.basename(file_path)}' due to symlink error: {type(e).__name__}: {e}")
+                   # The loop will continue to try adding other selected files.
+           
+           print("\nDEBUG: All symlink operations attempted. Reloading main gallery images.")
+           self.load_images() # Reload main gallery after all additions
 
     def add_image_manually(self):
         # Open the new custom dialog instead of askopenfilename
