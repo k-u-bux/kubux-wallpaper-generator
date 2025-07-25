@@ -221,24 +221,22 @@ class WallpaperApp(tk.Tk):
         sliders_frame.grid(row=0, column=2)
         ttk.Label(sliders_frame, text="UI Size:").pack(side="left")
 
-        # *** FIX APPLIED HERE: Set value BEFORE binding command ***
         self.scale_slider = tk.Scale(
             sliders_frame, from_=0.5, to=2.5, orient="horizontal", 
             resolution=0.1, showvalue=0
         )
-        self.scale_slider.set(self.current_font_scale) # Set initial value
-        self.scale_slider.config(command=self.update_ui_scale) # THEN bind command
+        self.scale_slider.set(self.current_font_scale)
+        self.scale_slider.config(command=self.update_ui_scale)
         self.scale_slider.pack(side="left")
         
         ttk.Label(sliders_frame, text="Thumb Size:", padding="20 0 0 0").pack(side="left")
         
-        # *** FIX APPLIED HERE: Set value BEFORE binding command ***
         self.thumbnail_scale_slider = tk.Scale(
             sliders_frame, from_=0.5, to=2.5, orient="horizontal",
             resolution=0.1, showvalue=0
         )
-        self.thumbnail_scale_slider.set(self.current_thumbnail_scale) # Set initial value
-        self.thumbnail_scale_slider.config(command=self._gallery_update_thumbnail_scale_callback) # THEN bind command
+        self.thumbnail_scale_slider.set(self.current_thumbnail_scale)
+        self.thumbnail_scale_slider.config(command=self._gallery_update_thumbnail_scale_callback)
         self.thumbnail_scale_slider.pack(side="left")
 
         action_btn_frame = tk.Frame(controls_frame)
@@ -463,11 +461,18 @@ class WallpaperApp(tk.Tk):
         if messagebox.askyesno("Confirm Deletion", f"Delete '{os.path.basename(path_to_delete)}'?"):
             try:
                 os.remove(path_to_delete)
-                if self.current_image_path == path_to_delete:
-                    self.generated_image_label.config(image=None); self.current_image_path = None
+
+                # --- FIX APPLIED HERE ---
+                # Always clear the preview and its state, removing the fragile 'if'
+                self.generated_image_label.config(image=None)
+                self.generated_image_label.image = None # Explicitly break the reference
+                self.current_image_path = None
+
+                # Now clear the gallery selection and reload it
                 self.gallery_current_selection = None
-                self.load_images() 
-            except Exception as e: messagebox.showerror("Deletion Error", f"Failed to delete {e}")
+                self.load_images()
+            except Exception as e:
+                messagebox.showerror("Deletion Error", f"Failed to delete {e}")
 
     def set_current_as_wallpaper(self):
         if not self.current_image_path: return messagebox.showwarning("Wallpaper Error", "No image selected.")
