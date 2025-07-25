@@ -1,5 +1,6 @@
 # vibe coded with Gemini 2.5 Flash (2025-07-23)
 # =============================================
+# Golden Version: [v1.0-golden] - with Generate fix and Prompt History (Corrected Location)
 
 import os
 import tkinter as tk
@@ -69,8 +70,7 @@ def generate_image(prompt, model="black-forest-labs/FLUX.1-pro", width=1184, hei
             height=height,
             steps=steps
         )
-        image_url = response.data[0].url
-        return image_url
+        return response.data[0].url
     except Exception as e:
         messagebox.showerror("API Error", f"Error generating image: {e}")
         return None
@@ -116,16 +116,11 @@ class WallpaperApp(tk.Tk):
         
         self.create_widgets()
         
-        # --- FIX APPLIED HERE ---
-        # Allow the main window and panes to be drawn and settle first.
         self.update_idletasks()
         self.set_initial_pane_positions()
         
-        # Defer loading images until the event loop is idle and geometry is stable.
-        # This prevents a race condition where we ask for the canvas width before it's calculated.
         self.after(1, self.load_images)
 
-        # Bind events only AFTER the initial layout is complete or scheduled.
         self.gallery_canvas.bind("<Configure>", self._gallery_on_canvas_configure)
         self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -210,6 +205,7 @@ class WallpaperApp(tk.Tk):
 
         prompt_frame_inner = tk.Frame(prompt_frame_outer)
         prompt_frame_inner.pack(fill="both", expand=True, padx=5, pady=5)
+        
         self.prompt_text_widget = tk.Text(prompt_frame_inner, height=6, wrap="word", relief="sunken", borderwidth=2, font=self.app_font)
         self.prompt_text_widget.pack(fill="both", expand=True)
         self.prompt_text_widget.bind("<Return>", lambda event: self.on_generate_button_click())
@@ -222,7 +218,6 @@ class WallpaperApp(tk.Tk):
         self.gallery_grid_frame = tk.Frame(self.gallery_canvas)
         self.gallery_canvas.create_window((0, 0), window=self.gallery_grid_frame, anchor="nw")
         
-        # NOTE: The <Configure> bind was moved to __init__ to prevent startup issues.
         self._gallery_bind_mousewheel(self)
 
         controls_frame = tk.Frame(self)
@@ -232,7 +227,11 @@ class WallpaperApp(tk.Tk):
         generate_btn_frame = tk.Frame(controls_frame)
         generate_btn_frame.grid(row=0, column=0, sticky="w")
         self.generate_button = ttk.Button(generate_btn_frame, text="Generate", command=self.on_generate_button_click)
-        self.generate_button.pack(side="left")
+        self.generate_button.pack(side="left", padx=(0,2))
+        
+        # --- BUTTON MOVED HERE ---
+        self.history_button = ttk.Button(generate_btn_frame, text="History", command=self._show_prompt_history)
+        self.history_button.pack(side="left")
 
         sliders_frame = tk.Frame(controls_frame)
         sliders_frame.grid(row=0, column=2)
@@ -315,8 +314,7 @@ class WallpaperApp(tk.Tk):
             messagebox.showerror("Image Display Error", f"Could not display image: {e}")
             self.current_image_path = None
     
-    # --- Integrated Gallery Methods ---
-
+    # --- Gallery Methods ---
     def load_images(self):
         try:
             self.gallery_image_files = sorted([os.path.join(IMAGE_DIR, f) for f in os.listdir(IMAGE_DIR) if f.lower().endswith(('.png', '.jpg', '.jpeg'))], reverse=True)
@@ -327,24 +325,18 @@ class WallpaperApp(tk.Tk):
     def _gallery_refresh_display(self):
         for widget in self.gallery_grid_frame.winfo_children():
             widget.destroy()
-
         try:
             old_num_columns = self.gallery_grid_frame.grid_size()[0]
             for i in range(old_num_columns):
                 self.gallery_grid_frame.grid_columnconfigure(i, weight=0)
-        except IndexError:
-            pass
-
+        except IndexError: pass
         if not self.gallery_image_files:
             self.gallery_grid_frame.update_idletasks()
             self.gallery_canvas.config(scrollregion=self.gallery_canvas.bbox("all"))
             return
-
         thumbnail_cols = self._gallery_calculate_columns()
-
         self.gallery_grid_frame.grid_columnconfigure(0, weight=1)
         self.gallery_grid_frame.grid_columnconfigure(thumbnail_cols + 1, weight=1)
-
         for i, img_path in enumerate(self.gallery_image_files):
             row, col = divmod(i, thumbnail_cols)
             thumbnail = self._gallery_get_thumbnail(img_path)
@@ -355,7 +347,6 @@ class WallpaperApp(tk.Tk):
                 btn.grid(row=row, column=col + 1, padx=2, pady=2)
                 if self.gallery_current_selection == img_path:
                     btn.config(relief="solid", borderwidth=2, highlightbackground="blue")
-        
         self.gallery_grid_frame.update_idletasks()
         self.gallery_canvas.config(scrollregion=self.gallery_canvas.bbox("all"))
 
@@ -382,22 +373,15 @@ class WallpaperApp(tk.Tk):
         return self.gallery_thumbnails_cache.get(cache_key)
 
     def _gallery_on_canvas_configure(self, event):
-        if self._gallery_resize_job:
-            self.after_cancel(self._gallery_resize_job)
+        if self._gallery_resize_job: self.after_cancel(self._gallery_resize_job)
         self._gallery_resize_job = self.after(400, lambda e=event: self._do_gallery_resize_refresh(e))
 
     def _do_gallery_resize_refresh(self, event):
         self.gallery_canvas.itemconfig(self.gallery_canvas.find_all()[0], width=event.width)
-        
-        try:
-            current_columns = self.gallery_grid_frame.grid_size()[0] - 2
-        except IndexError:
-            current_columns = 0
-            
+        try: current_columns = self.gallery_grid_frame.grid_size()[0] - 2
+        except IndexError: current_columns = 0
         new_columns = self._gallery_calculate_columns()
-        
-        if new_columns != current_columns and current_columns > 0: 
-            self._gallery_refresh_display()
+        if new_columns != current_columns and current_columns > 0: self._gallery_refresh_display()
 
     def _gallery_calculate_columns(self):
         available_width = self.gallery_canvas.winfo_width()
@@ -425,19 +409,67 @@ class WallpaperApp(tk.Tk):
         widget.bind("<Button-5>", lambda e: self._gallery_on_mousewheel(e), add="+")
 
     def _gallery_on_mousewheel(self, event):
-        if platform.system() == "Windows":
-            self.gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        elif event.num == 4: # Linux scroll up
-             self.gallery_canvas.yview_scroll(-1, "units")
-        elif event.num == 5: # Linux scroll down
-             self.gallery_canvas.yview_scroll(1, "units")
+        if platform.system() == "Windows": self.gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        elif event.num == 4: self.gallery_canvas.yview_scroll(-1, "units")
+        elif event.num == 5: self.gallery_canvas.yview_scroll(1, "units")
 
     # --- Core App Actions ---
     def add_prompt_to_history(self, prompt):
         if prompt in self.prompt_history: self.prompt_history.remove(prompt) 
         self.prompt_history.insert(0, prompt)
         self.prompt_history = self.prompt_history[:self.max_history_items]
-        self.save_prompt_history() 
+        self.save_prompt_history()
+    
+    def _center_toplevel_window(self, toplevel_window):
+        toplevel_window.update_idletasks() 
+        main_win_x = self.winfo_x()
+        main_win_y = self.winfo_y()
+        main_win_w = self.winfo_width()
+        main_win_h = self.winfo_height()
+        popup_w = toplevel_window.winfo_width()
+        popup_h = toplevel_window.winfo_height()
+        x_pos = main_win_x + (main_win_w // 2) - (popup_w // 2)
+        y_pos = main_win_y + (main_win_h // 2) - (popup_h // 2)
+        toplevel_window.geometry(f"+{x_pos}+{y_pos}")
+
+    def _show_prompt_history(self):
+        if not self.prompt_history:
+            messagebox.showinfo("Prompt History", "No saved prompts found.", parent=self)
+            return
+
+        history_window = tk.Toplevel(self)
+        history_window.title("Prompt History")
+        history_window.transient(self)
+        history_window.grab_set()
+
+        listbox_frame = tk.Frame(history_window, padx=5, pady=5)
+        listbox_frame.pack(fill="both", expand=True)
+
+        listbox = tk.Listbox(listbox_frame, font=self.app_font, height=15)
+        scrollbar = ttk.Scrollbar(listbox_frame, orient="vertical", command=listbox.yview)
+        listbox.config(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side="right", fill="y")
+        listbox.pack(side="left", fill="both", expand=True)
+
+        for prompt in self.prompt_history: listbox.insert(tk.END, prompt)
+
+        def _on_prompt_selected(event=None):
+            selection_indices = listbox.curselection()
+            if not selection_indices: return
+            selected_prompt = listbox.get(selection_indices[0])
+            self.prompt_text_widget.delete("1.0", tk.END)
+            self.prompt_text_widget.insert("1.0", selected_prompt)
+            history_window.destroy()
+
+        listbox.bind("<Double-1>", _on_prompt_selected)
+
+        button_frame = ttk.Frame(history_window)
+        button_frame.pack(fill="x", padx=5, pady=(0, 5))
+        ttk.Button(button_frame, text="Select", command=_on_prompt_selected).pack(side="right")
+        ttk.Button(button_frame, text="Cancel", command=history_window.destroy).pack(side="right", padx=5)
+
+        self._center_toplevel_window(history_window)
 
     def on_generate_button_click(self):
         prompt = self.prompt_text_widget.get("1.0", tk.END).strip()
@@ -478,15 +510,12 @@ class WallpaperApp(tk.Tk):
         if messagebox.askyesno("Confirm Deletion", f"Delete '{os.path.basename(path_to_delete)}'?"):
             try:
                 os.remove(path_to_delete)
-                
                 self.generated_image_label.config(image=None)
                 self.generated_image_label.image = None
                 self.current_image_path = None
-
                 self.gallery_current_selection = None
                 self.load_images()
-            except Exception as e:
-                messagebox.showerror("Deletion Error", f"Failed to delete {e}")
+            except Exception as e: messagebox.showerror("Deletion Error", f"Failed to delete {e}")
 
     def set_current_as_wallpaper(self):
         if not self.current_image_path: return messagebox.showwarning("Wallpaper Error", "No image selected.")
