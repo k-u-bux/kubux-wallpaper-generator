@@ -109,6 +109,17 @@ def unique_name(file_path,mode):
 # Assuming 'IMAGE_DIR' is defined globally before this class
 # Assuming 'datetime', 'os', 'tkinter', 'ttk', 'Image', 'ImageTk', 'platform', 'messagebox', 'filedialog' are imported
 
+import os
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from tkinter import ttk
+from PIL import Image, ImageTk
+import platform
+from datetime import datetime
+
+# Assume 'unique_name' is defined globally
+# Assume 'IMAGE_DIR' is defined globally
+
 class ImagePickerDialog(tk.Toplevel):
     def __init__(self, master, thumbnail_max_size, image_dir_path):
         super().__init__(master)
@@ -134,20 +145,23 @@ class ImagePickerDialog(tk.Toplevel):
 
         # Bind protocol for window close to save geometry and destroy
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
+        
+        # Set focus to the dialog after a short delay to enable keyboard navigation
+        self.after(100, self.focus_set)
 
     def create_widgets(self):
-        # Thumbnail Display Area (Canvas and Scrollbar) - remains at top/middle
+        # Thumbnail Display Area (Canvas and Scrollbar)
         self.canvas_frame = ttk.Frame(self)
         self.canvas_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self.gallery_canvas = tk.Canvas(self.canvas_frame, bg="white") # Added background for visibility
+        self.gallery_canvas = tk.Canvas(self.canvas_frame, bg="white")
         self.gallery_scrollbar = ttk.Scrollbar(self.canvas_frame, orient="vertical", command=self.gallery_canvas.yview)
         self.gallery_canvas.config(yscrollcommand=self.gallery_scrollbar.set)
         
         self.gallery_scrollbar.pack(side="right", fill="y")
         self.gallery_canvas.pack(side="left", fill="both", expand=True)
         
-        self.gallery_grid_frame = tk.Frame(self.gallery_canvas, bg="white") # Added background
+        self.gallery_grid_frame = tk.Frame(self.gallery_canvas, bg="white")
         self.gallery_canvas.create_window((0, 0), window=self.gallery_grid_frame, anchor="nw")
 
         self.gallery_canvas.bind("<Configure>", self._on_canvas_configure)
@@ -157,7 +171,13 @@ class ImagePickerDialog(tk.Toplevel):
         self._bind_mousewheel(self.gallery_canvas)
         self._bind_mousewheel(self.gallery_grid_frame)
 
-        # Control Frame (now at the bottom, contains all buttons and path display)
+        # Add Keyboard bindings for scrolling (bound to the Toplevel window)
+        self.bind("<Up>", lambda e: self.gallery_canvas.yview_scroll(-1, "units"))
+        self.bind("<Down>", lambda e: self.gallery_canvas.yview_scroll(1, "units"))
+        self.bind("<Prior>", lambda e: self.gallery_canvas.yview_scroll(-1, "pages")) # Page Up
+        self.bind("<Next>", lambda e: self.gallery_canvas.yview_scroll(1, "pages")) # Page Down
+
+        # Control Frame (at the bottom)
         control_frame = ttk.Frame(self)
         control_frame.pack(fill="x", padx=5, pady=5)
 
@@ -167,8 +187,9 @@ class ImagePickerDialog(tk.Toplevel):
         # Center: Current directory info
         current_dir_info_frame = ttk.Frame(control_frame)
         current_dir_info_frame.pack(side="left", fill="x", expand=True, padx=5)
-        self.current_dir_label = ttk.Label(current_dir_info_frame, text="", anchor="center") # Centered text within its frame
-        self.current_dir_label.pack(expand=True) # Makes label expand within current_dir_info_frame
+        # Modified line: removed wraplength
+        self.current_dir_label = ttk.Label(current_dir_info_frame, text="", anchor="center") 
+        self.current_dir_label.pack(expand=True)
 
         # Right side: Add and Cancel buttons (packed in reverse order for correct visual sequence)
         ttk.Button(control_frame, text="Cancel", command=self._on_closing).pack(side="right")
@@ -201,7 +222,7 @@ class ImagePickerDialog(tk.Toplevel):
             self.update_idletasks() # Ensure geometry is up-to-date
             geometry = self.geometry()
             self.master_app.app_settings['image_picker_dialog_geometry'] = geometry
-            self.master_app.save_app_settings() # Save the main app settings file
+            self.master_app.save_app_settings() # Corrected: calling save_app_settings
 
     def _load_geometry(self):
         """Loads and applies saved dialog geometry from app settings."""
@@ -210,14 +231,16 @@ class ImagePickerDialog(tk.Toplevel):
             if geometry_str:
                 try:
                     self.geometry(geometry_str)
-                    # Simple check if the window is substantially off-screen
-                    # This is a heuristic and might not cover all multi-monitor cases perfectly.
+                    # Simple check if the window is substantially off-screen.
+                    # Needs winfo_width/height after geometry is applied.
+                    self.update_idletasks() 
                     x, y, w, h = self.winfo_x(), self.winfo_y(), self.winfo_width(), self.winfo_height()
                     screen_width = self.winfo_screenwidth()
                     screen_height = self.winfo_screenheight()
 
-                    # If window's top-left is outside screen or bottom-right is outside
-                    if x < -w or x > screen_width or y < -h or y > screen_height:
+                    # If window's top-left is outside screen or bottom-right is outside significantly
+                    # (allowing for a small margin off-screen to avoid re-centering due to minor shifts)
+                    if x < -w/2 or x > screen_width - w/2 or y < -h/2 or y > screen_height - h/2:
                         self._center_toplevel_window(self)
                 except Exception as e:
                     print(f"Error loading image picker dialog geometry: {e}. Centering window.")
@@ -250,7 +273,6 @@ class ImagePickerDialog(tk.Toplevel):
         image_files = sorted([f for f in files_in_dir if f.lower().endswith(('.png', '.jpg', '.jpeg')) and os.path.isfile(f)])
         directories = sorted([f for f in files_in_dir if os.path.isdir(f)])
 
-        # Calculate columns based on current canvas width
         thumbnail_cols = self._calculate_columns()
         if thumbnail_cols == 0: thumbnail_cols = 1 # Ensure at least one column
 
@@ -260,21 +282,25 @@ class ImagePickerDialog(tk.Toplevel):
             row, col = divmod(current_grid_idx, thumbnail_cols)
             dir_name = os.path.basename(dir_path)
             
-            # Create a frame for the folder icon and text
             folder_frame = ttk.Frame(self.gallery_grid_frame, cursor="hand2", relief="groove", borderwidth=1)
             folder_frame.grid(row=row, column=col, padx=2, pady=2, sticky="nsew")
             
-            # Placeholder for a folder icon (you might add a real icon here)
             folder_icon_label = ttk.Label(folder_frame, text="📁", font=("TkDefaultFont", int(self.master_app.base_font_size * self.master_app.current_font_scale * 1.5)))
             folder_icon_label.pack(pady=(5,0))
             
             folder_name_label = ttk.Label(folder_frame, text=dir_name, wraplength=self.thumbnail_max_size - 10, anchor="center")
             folder_name_label.pack(fill="x", padx=2, pady=(0,5))
             
-            # Bind click events to the frame and its contents
+            # Bind click events
             folder_frame.bind("<Button-1>", lambda e, p=dir_path: self._browse_directory(p))
             folder_icon_label.bind("<Button-1>", lambda e, p=dir_path: self._browse_directory(p))
             folder_name_label.bind("<Button-1>", lambda e, p=dir_path: self._browse_directory(p))
+
+            # --- NEW: Bind mousewheel to folder elements ---
+            self._bind_mousewheel(folder_frame)
+            self._bind_mousewheel(folder_icon_label)
+            self._bind_mousewheel(folder_name_label)
+            # -----------------------------------------------
 
             self.gallery_grid_frame.grid_columnconfigure(col, weight=1)
             current_grid_idx += 1
@@ -285,13 +311,16 @@ class ImagePickerDialog(tk.Toplevel):
             
             thumbnail = self._get_thumbnail(img_path) 
             if thumbnail:
-                # Create a frame for the image and text (if desired) or just use a button
                 btn = tk.Button(self.gallery_grid_frame, image=thumbnail, 
                                 command=lambda p=img_path, current_btn=None: self._toggle_selection(p, self.image_widgets[p] if p in self.image_widgets else current_btn),
                                 cursor="hand2", relief="flat", borderwidth=0)
                 btn.image = thumbnail # Keep reference to prevent garbage collection
                 btn.grid(row=row, column=col, padx=2, pady=2, sticky="nsew")
                 self.image_widgets[img_path] = btn # Store button for highlighting
+
+                # --- NEW: Bind mousewheel to thumbnail button ---
+                self._bind_mousewheel(btn)
+                # ------------------------------------------------
 
                 # Apply initial selection highlight if already selected
                 if img_path in self.selected_files:
@@ -345,9 +374,9 @@ class ImagePickerDialog(tk.Toplevel):
         self.gallery_canvas.itemconfig(self.gallery_canvas.find_all()[0], width=event.width)
         
         new_columns = self._calculate_columns()
-        current_columns = self.gallery_grid_frame.grid_size()[0] # Get current number of columns
-        if new_columns != current_columns and (self.image_widgets or os.listdir(self.current_directory)):
-            self._refresh_thumbnail_grid()
+        # Avoid unnecessary refresh if columns haven't changed AND there are items in the grid
+        if new_columns != self.gallery_grid_frame.grid_size()[0] and (self.image_widgets or os.listdir(self.current_directory)):
+             self._refresh_thumbnail_grid()
 
     def _calculate_columns(self):
         """Calculates how many columns of thumbnails can fit in the canvas."""
@@ -357,20 +386,19 @@ class ImagePickerDialog(tk.Toplevel):
         return max(1, (available_width - 20) // thumb_width_with_padding) # 20 for scrollbar/margin
 
     def _bind_mousewheel(self, widget):
-        """Binds mousewheel events for scrolling."""
-        # Reuse master app's mousewheel binding logic if possible, otherwise use local.
-        if hasattr(self.master_app, '_gallery_on_mousewheel'):
-            widget.bind("<MouseWheel>", self.master_app._gallery_on_mousewheel, add="+")
-            widget.bind("<Button-4>", lambda e: self.master_app._gallery_on_mousewheel(e), add="+")
-            widget.bind("<Button-5>", lambda e: self.master_app._gallery_on_mousewheel(e), add="+")
-        else:
-            def on_mousewheel_local(event):
-                if platform.system() == "Windows": self.gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-                elif event.num == 4: self.gallery_canvas.yview_scroll(-1, "units")
-                elif event.num == 5: self.gallery_canvas.yview_scroll(1, "units")
-            widget.bind("<MouseWheel>", on_mousewheel_local, add="+")
-            widget.bind("<Button-4>", lambda e: on_mousewheel_local(e), add="+")
-            widget.bind("<Button-5>", lambda e: on_mousewheel_local(e), add="+")
+        """Binds mousewheel events for scrolling within the ImagePickerDialog's canvas."""
+        # Always use the local scrolling logic for the dialog's canvas
+        def on_mousewheel_local(event):
+            if platform.system() == "Windows": 
+                self.gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            elif event.num == 4: # Linux/macOS scroll up (Button-4 is scroll up)
+                self.gallery_canvas.yview_scroll(-1, "units")
+            elif event.num == 5: # Linux/macOS scroll down (Button-5 is scroll down)
+                self.gallery_canvas.yview_scroll(1, "units")
+        
+        widget.bind("<MouseWheel>", on_mousewheel_local, add="+")
+        widget.bind("<Button-4>", lambda e: on_mousewheel_local(e), add="+")
+        widget.bind("<Button-5>", lambda e: on_mousewheel_local(e), add="+")
 
 
 class WallpaperApp(tk.Tk):
