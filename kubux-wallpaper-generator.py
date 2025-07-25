@@ -1,6 +1,6 @@
 # vibe coded with Gemini 2.5 Flash (2025-07-23)
 # =============================================
-# Golden Version: [v1.0-golden] - Final Polished Version with Layout Fix
+# Golden Version: [v1.0-golden] - Final with FOUC (Flash of Unstyled Content) Fix
 
 import os
 import tkinter as tk
@@ -105,6 +105,7 @@ class WallpaperApp(tk.Tk):
         self._gallery_scale_update_after_id = None
         self._gallery_resize_job = None
         self._ui_scale_job = None
+        self._initial_load_done = False # --- FIX: Flag for initial load
 
         self.load_prompt_history()
         self.load_app_settings()
@@ -118,7 +119,8 @@ class WallpaperApp(tk.Tk):
         self.update_idletasks()
         self.set_initial_pane_positions()
         
-        self.after(1, self.load_images)
+        # --- FIX: Initial load is now handled by the <Configure> event ---
+        # self.after(1, self.load_images) # REMOVED
 
         self.gallery_canvas.bind("<Configure>", self._gallery_on_canvas_configure)
         self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)
@@ -179,18 +181,15 @@ class WallpaperApp(tk.Tk):
         self.style = ttk.Style()
         self.style.configure('.', font=self.app_font)
 
-        # --- LAYOUT FIX: Pack controls to bottom first ---
         controls_frame = tk.Frame(self)
         controls_frame.pack(side="bottom", fill="x", pady=(5, 5), padx=5)
         controls_frame.grid_columnconfigure((1, 3), weight=1)
 
-        # The main container for the paned window now fills the remaining space
         main_container = tk.Frame(self)
         main_container.pack(side="top", fill="both", expand=True, padx=5, pady=(5, 0))
 
         self.paned_window = ttk.PanedWindow(main_container, orient="horizontal")
         self.paned_window.pack(fill="both", expand=True)
-        # --- END LAYOUT FIX ---
         
         left_pane = ttk.Frame(self.paned_window)
         self.paned_window.add(left_pane, weight=1)
@@ -376,8 +375,16 @@ class WallpaperApp(tk.Tk):
                 return None
         return self.gallery_thumbnails_cache.get(cache_key)
 
+    # --- FIX: Modified <Configure> handler ---
     def _gallery_on_canvas_configure(self, event):
-        if self._gallery_resize_job: self.after_cancel(self._gallery_resize_job)
+        # On the very first configure event that has a real width, load images.
+        if not self._initial_load_done and event.width > 1:
+            self.load_images()
+            self._initial_load_done = True
+            
+        # Continue with the existing debounced resize logic for subsequent resizes.
+        if self._gallery_resize_job: 
+            self.after_cancel(self._gallery_resize_job)
         self._gallery_resize_job = self.after(400, lambda e=event: self._do_gallery_resize_refresh(e))
 
     def _do_gallery_resize_refresh(self, event):
@@ -385,7 +392,7 @@ class WallpaperApp(tk.Tk):
         try: current_columns = self.gallery_grid_frame.grid_size()[0] - 2
         except IndexError: current_columns = 0
         new_columns = self._gallery_calculate_columns()
-        if new_columns != current_columns and current_columns > 0: self._gallery_refresh_display()
+        if new_columns != current_columns and new_columns > 0: self._gallery_refresh_display()
 
     def _gallery_calculate_columns(self):
         available_width = self.gallery_canvas.winfo_width()
