@@ -1,6 +1,6 @@
 # vibe coded with Gemini 2.5 Flash (2025-07-23)
 # =============================================
-# Golden Version: [v1.0-golden] - with Generate fix, Prompt History, and CORRECT Keyboard Scrolling
+# Golden Version: [v1.0-golden] - Final Polished Version with Layout Fix
 
 import os
 import tkinter as tk
@@ -178,11 +178,19 @@ class WallpaperApp(tk.Tk):
     def create_widgets(self):
         self.style = ttk.Style()
         self.style.configure('.', font=self.app_font)
+
+        # --- LAYOUT FIX: Pack controls to bottom first ---
+        controls_frame = tk.Frame(self)
+        controls_frame.pack(side="bottom", fill="x", pady=(5, 5), padx=5)
+        controls_frame.grid_columnconfigure((1, 3), weight=1)
+
+        # The main container for the paned window now fills the remaining space
         main_container = tk.Frame(self)
-        main_container.pack(fill="both", expand=True, padx=5, pady=5)
+        main_container.pack(side="top", fill="both", expand=True, padx=5, pady=(5, 0))
 
         self.paned_window = ttk.PanedWindow(main_container, orient="horizontal")
-        self.paned_window.pack(fill="both", expand=True, pady=(0, 5))
+        self.paned_window.pack(fill="both", expand=True)
+        # --- END LAYOUT FIX ---
         
         left_pane = ttk.Frame(self.paned_window)
         self.paned_window.add(left_pane, weight=1)
@@ -222,10 +230,6 @@ class WallpaperApp(tk.Tk):
         self.gallery_canvas.bind("<Key>", self._gallery_on_key_press)
         self.gallery_canvas.bind("<Enter>", lambda e: self.gallery_canvas.focus_set())
         self.gallery_canvas.bind("<Leave>", lambda e: self.focus_set())
-
-        controls_frame = tk.Frame(self)
-        controls_frame.pack(fill="x", pady=(5, 0))
-        controls_frame.grid_columnconfigure((1, 3), weight=1)
 
         generate_btn_frame = tk.Frame(controls_frame)
         generate_btn_frame.grid(row=0, column=0, sticky="w")
@@ -277,13 +281,12 @@ class WallpaperApp(tk.Tk):
         self.current_font_scale = scale_factor
         new_size = int(self.base_font_size * scale_factor)
         self.app_font.config(size=new_size)
-
-        def update_widget_fonts(widget):
+        def update_widget_fonts(widget, font):
             try:
-                if 'font' in widget.config(): widget.config(font=self.app_font)
+                if 'font' in widget.config(): widget.config(font=font)
             except tk.TclError: pass
-            for child in widget.winfo_children(): update_widget_fonts(child)
-        update_widget_fonts(self)
+            for child in widget.winfo_children(): update_widget_fonts(child, font)
+        update_widget_fonts(self, self.app_font)
         if self.current_image_path: self.display_image(self.current_image_path)
     
     def on_image_display_frame_resize(self, event):
@@ -414,30 +417,18 @@ class WallpaperApp(tk.Tk):
         elif event.num == 4: self.gallery_canvas.yview_scroll(-1, "units")
         elif event.num == 5: self.gallery_canvas.yview_scroll(1, "units")
         
-    # --- KEYBOARD SCROLLING METHOD (CORRECTED) ---
     def _gallery_on_key_press(self, event):
         key = event.keysym
-        
-        if key == 'Up':
-            self.gallery_canvas.yview_scroll(-1, "units")
-        elif key == 'Down':
-            self.gallery_canvas.yview_scroll(1, "units")
-        elif key == 'Left': # Accelerated scroll up
-            self.gallery_canvas.yview_scroll(-5, "units")
-        elif key == 'Right': # Accelerated scroll down
-            self.gallery_canvas.yview_scroll(5, "units")
-        elif key == 'Prior': # Page Up
-            self.gallery_canvas.yview_scroll(-1, "pages")
-        elif key == 'Next': # Page Down
-            self.gallery_canvas.yview_scroll(1, "pages")
-        elif key == 'Home':
-            self.gallery_canvas.yview_moveto(0.0)
-        elif key == 'End':
-            self.gallery_canvas.yview_moveto(1.0)
-        else:
-            return # Do nothing for other keys
-
-        return 'break' # Stop the event from propagating further
+        if key == 'Up': self.gallery_canvas.yview_scroll(-1, "units")
+        elif key == 'Down': self.gallery_canvas.yview_scroll(1, "units")
+        elif key == 'Left': self.gallery_canvas.yview_scroll(-5, "units")
+        elif key == 'Right': self.gallery_canvas.yview_scroll(5, "units")
+        elif key == 'Prior': self.gallery_canvas.yview_scroll(-1, "pages")
+        elif key == 'Next': self.gallery_canvas.yview_scroll(1, "pages")
+        elif key == 'Home': self.gallery_canvas.yview_moveto(0.0)
+        elif key == 'End': self.gallery_canvas.yview_moveto(1.0)
+        else: return
+        return 'break'
 
     # --- Core App Actions ---
     def add_prompt_to_history(self, prompt):
