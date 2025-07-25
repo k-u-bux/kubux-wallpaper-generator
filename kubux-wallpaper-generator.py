@@ -606,7 +606,7 @@ class WallpaperApp(tk.Tk):
         action_btn_frame = tk.Frame(controls_frame)
         action_btn_frame.grid(row=0, column=4, sticky="e")
         ttk.Button(action_btn_frame, text="Delete", command=self.delete_selected_image).pack(side="left", padx=24)
-        ttk.Button(action_btn_frame, text="Add", command=self.add_image_manually).pack(side="left", padx=24)
+        ttk.Button(action_btn_frame, text="Add", command=self.manually_add_images).pack(side="left", padx=24)
         ttk.Button(action_btn_frame, text="Set Wallpaper", command=self.set_current_as_wallpaper).pack(side="left", padx=(24,2))
 
     def set_initial_pane_positions(self):
@@ -907,16 +907,6 @@ class WallpaperApp(tk.Tk):
         self.load_images()
         self._gallery_on_thumbnail_click(path_to_select)
 
-#    def add_image_manually(self):
-#        file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.png *.jpg *.jpeg")])
-#        if not file_path: return
-#        try:
-#            file_name = unique_name(file_path,"manual")
-#            dest = os.path.join(IMAGE_DIR, file_name)
-#            os.symlink(file_path,dest)
-#            self.load_images_and_select(dest)
-#        except Exception as e: messagebox.showerror("File Error", f"Failed to add image: {e}")
-
     def add_multiple_images_as_symlinks(self, original_paths):
            """
            Adds multiple images to IMAGE_DIR as symlinks, ensuring unique names.
@@ -964,7 +954,7 @@ class WallpaperApp(tk.Tk):
            # print("\nDEBUG: All symlink operations attempted. Reloading main gallery images.")
            self.load_images() # Reload main gallery after all additions
 
-    def add_image_manually(self):
+    def manually_add_images(self):
         # Open the new custom dialog instead of askopenfilename
         dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, IMAGE_DIR)
         self.wait_window(dialog) # Wait for the dialog to close
