@@ -109,17 +109,6 @@ def unique_name(file_path,mode):
 # Assuming 'IMAGE_DIR' is defined globally before this class
 # Assuming 'datetime', 'os', 'tkinter', 'ttk', 'Image', 'ImageTk', 'platform', 'messagebox', 'filedialog' are imported
 
-import os
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from tkinter import ttk
-from PIL import Image, ImageTk
-import platform
-from datetime import datetime
-
-# Assume 'unique_name' is defined globally
-# Assume 'IMAGE_DIR' is defined globally
-
 class ImagePickerDialog(tk.Toplevel):
     def __init__(self, master, thumbnail_max_size, image_dir_path):
         super().__init__(master)
@@ -131,17 +120,30 @@ class ImagePickerDialog(tk.Toplevel):
         self.thumbnail_max_size = thumbnail_max_size
         self.image_dir_path = image_dir_path # This is IMAGE_DIR from main app
 
-        # Start Browse from user's Pictures directory or home if not available
-        self.current_directory = os.path.expanduser(os.path.join('~', 'Pictures'))
-        if not os.path.isdir(self.current_directory):
-            self.current_directory = os.path.expanduser('~')
+        # --- NEW: Load last browsed directory or default ---
+        self.current_directory = "" # Initialize to ensure it exists
+        if hasattr(self.master_app, 'app_settings'):
+            saved_dir = self.master_app.app_settings.get('image_picker_last_directory')
+            if saved_dir and os.path.isdir(saved_dir):
+                self.current_directory = saved_dir
+            else:
+                # Default logic if no saved dir or it's invalid
+                self.current_directory = os.path.expanduser(os.path.join('~', 'Pictures'))
+                if not os.path.isdir(self.current_directory):
+                    self.current_directory = os.path.expanduser('~')
+        else:
+            # Fallback if master_app doesn't even have app_settings (unlikely if app_settings is loaded properly)
+            self.current_directory = os.path.expanduser(os.path.join('~', 'Pictures'))
+            if not os.path.isdir(self.current_directory):
+                self.current_directory = os.path.expanduser('~')
+        # ---------------------------------------------------
 
         self.selected_files = {} # Store {original_path: True} for selected files
         self.image_widgets = {} # To store references to thumbnail buttons/labels for selection highlighting
 
         self.create_widgets()
         self._load_geometry() # Load geometry before initial content fill
-        self._browse_directory(self.current_directory)
+        self._browse_directory(self.current_directory) # Use the loaded/default directory
 
         # Bind protocol for window close to save geometry and destroy
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
@@ -187,7 +189,6 @@ class ImagePickerDialog(tk.Toplevel):
         # Center: Current directory info
         current_dir_info_frame = ttk.Frame(control_frame)
         current_dir_info_frame.pack(side="left", fill="x", expand=True, padx=5)
-        # Modified line: removed wraplength
         self.current_dir_label = ttk.Label(current_dir_info_frame, text="", anchor="center") 
         self.current_dir_label.pack(expand=True)
 
@@ -217,12 +218,15 @@ class ImagePickerDialog(tk.Toplevel):
         self.destroy()
 
     def _save_geometry(self):
-        """Saves the current dialog geometry to app settings."""
+        """Saves the current dialog geometry AND current directory to app settings."""
         if hasattr(self.master_app, 'app_settings'):
             self.update_idletasks() # Ensure geometry is up-to-date
             geometry = self.geometry()
             self.master_app.app_settings['image_picker_dialog_geometry'] = geometry
-            self.master_app.save_app_settings() # Corrected: calling save_app_settings
+            # --- NEW: Save current directory ---
+            self.master_app.app_settings['image_picker_last_directory'] = self.current_directory
+            # -----------------------------------
+            self.master_app.save_app_settings()
 
     def _load_geometry(self):
         """Loads and applies saved dialog geometry from app settings."""
@@ -231,15 +235,11 @@ class ImagePickerDialog(tk.Toplevel):
             if geometry_str:
                 try:
                     self.geometry(geometry_str)
-                    # Simple check if the window is substantially off-screen.
-                    # Needs winfo_width/height after geometry is applied.
                     self.update_idletasks() 
                     x, y, w, h = self.winfo_x(), self.winfo_y(), self.winfo_width(), self.winfo_height()
                     screen_width = self.winfo_screenwidth()
                     screen_height = self.winfo_screenheight()
 
-                    # If window's top-left is outside screen or bottom-right is outside significantly
-                    # (allowing for a small margin off-screen to avoid re-centering due to minor shifts)
                     if x < -w/2 or x > screen_width - w/2 or y < -h/2 or y > screen_height - h/2:
                         self._center_toplevel_window(self)
                 except Exception as e:
@@ -296,11 +296,10 @@ class ImagePickerDialog(tk.Toplevel):
             folder_icon_label.bind("<Button-1>", lambda e, p=dir_path: self._browse_directory(p))
             folder_name_label.bind("<Button-1>", lambda e, p=dir_path: self._browse_directory(p))
 
-            # --- NEW: Bind mousewheel to folder elements ---
+            # Bind mousewheel to folder elements
             self._bind_mousewheel(folder_frame)
             self._bind_mousewheel(folder_icon_label)
             self._bind_mousewheel(folder_name_label)
-            # -----------------------------------------------
 
             self.gallery_grid_frame.grid_columnconfigure(col, weight=1)
             current_grid_idx += 1
@@ -318,9 +317,8 @@ class ImagePickerDialog(tk.Toplevel):
                 btn.grid(row=row, column=col, padx=2, pady=2, sticky="nsew")
                 self.image_widgets[img_path] = btn # Store button for highlighting
 
-                # --- NEW: Bind mousewheel to thumbnail button ---
+                # Bind mousewheel to thumbnail button
                 self._bind_mousewheel(btn)
-                # ------------------------------------------------
 
                 # Apply initial selection highlight if already selected
                 if img_path in self.selected_files:
@@ -370,11 +368,9 @@ class ImagePickerDialog(tk.Toplevel):
 
     def _on_canvas_configure(self, event):
         """Handles canvas resizing to adjust grid layout."""
-        # Ensure the grid frame width matches the canvas width
         self.gallery_canvas.itemconfig(self.gallery_canvas.find_all()[0], width=event.width)
         
         new_columns = self._calculate_columns()
-        # Avoid unnecessary refresh if columns haven't changed AND there are items in the grid
         if new_columns != self.gallery_grid_frame.grid_size()[0] and (self.image_widgets or os.listdir(self.current_directory)):
              self._refresh_thumbnail_grid()
 
