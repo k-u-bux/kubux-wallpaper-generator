@@ -471,7 +471,7 @@ class WallpaperApp(tk.Tk):
         listbox_frame = tk.Frame(history_window, padx=5, pady=5)
         listbox_frame.pack(fill="both", expand=True)
 
-        listbox = tk.Listbox(listbox_frame, font=self.app_font, height=15)
+        listbox = tk.Listbox(listbox_frame, font=self.app_font, height=15, width=100)
         scrollbar = ttk.Scrollbar(listbox_frame, orient="vertical", command=listbox.yview)
         listbox.config(yscrollcommand=scrollbar.set)
 
