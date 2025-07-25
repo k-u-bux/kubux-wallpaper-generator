@@ -926,7 +926,7 @@ class WallpaperApp(tk.Tk):
                print("DEBUG: No files selected for symlinking. Returning.")
                return # No files selected
     
-           print(f"DEBUG: Starting symlink process for {len(original_paths)} files.")
+           # print(f"DEBUG: Starting symlink process for {len(original_paths)} files.")
            for i, file_path in enumerate(original_paths):
                # print(f"\nDEBUG: --- Processing file {i+1}/{len(original_paths)}: {file_path} ---")
                try:
@@ -961,7 +961,7 @@ class WallpaperApp(tk.Tk):
                    print(f"ERROR: Failed to add image '{os.path.basename(file_path)}' due to symlink error: {type(e).__name__}: {e}")
                    # The loop will continue to try adding other selected files.
            
-           print("\nDEBUG: All symlink operations attempted. Reloading main gallery images.")
+           # print("\nDEBUG: All symlink operations attempted. Reloading main gallery images.")
            self.load_images() # Reload main gallery after all additions
 
     def add_image_manually(self):
