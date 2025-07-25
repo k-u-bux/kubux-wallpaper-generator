@@ -928,7 +928,7 @@ class WallpaperApp(tk.Tk):
     
            print(f"DEBUG: Starting symlink process for {len(original_paths)} files.")
            for i, file_path in enumerate(original_paths):
-               print(f"\nDEBUG: --- Processing file {i+1}/{len(original_paths)}: {file_path} ---")
+               # print(f"\nDEBUG: --- Processing file {i+1}/{len(original_paths)}: {file_path} ---")
                try:
                    # Ensure the original file exists before trying to symlink
                    if not os.path.exists(file_path):
@@ -937,7 +937,7 @@ class WallpaperApp(tk.Tk):
     
                    file_name = unique_name(file_path, "manual") # Reuse unique_name for consistent naming
                    dest = os.path.join(IMAGE_DIR, file_name)
-                   print(f"DEBUG: Proposed symlink destination: {dest}")
+                   # print(f"DEBUG: Proposed symlink destination: {dest}")
     
                    # Check if a symlink to this specific file already exists
                    is_already_linked = False
@@ -952,9 +952,9 @@ class WallpaperApp(tk.Tk):
                        continue # Skip to next file if duplicate found
     
                    # If we reach here, the file is not a duplicate, attempt to create symlink
-                   print(f"DEBUG: Attempting to create symlink: '{file_path}' -> '{dest}'")
+                   # print(f"DEBUG: Attempting to create symlink: '{file_path}' -> '{dest}'")
                    os.symlink(file_path, dest)
-                   print(f"SUCCESS: Symlinked {file_path} to {dest}")
+                   # print(f"SUCCESS: Symlinked {file_path} to {dest}")
     
                except Exception as e:
                    # Catch any error during symlink creation
