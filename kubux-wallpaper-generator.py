@@ -106,13 +106,22 @@ class WallpaperApp(tk.Tk):
         self.base_font_size = 12
         self.app_font = tkFont.Font(family="TkDefaultFont", size=int(self.base_font_size * self.current_font_scale))
         self.geometry(self.initial_geometry)
+        
         self.create_widgets()
+        
+        # --- FIX APPLIED HERE ---
+        # Allow the main window and panes to be drawn and settle first.
         self.update_idletasks()
         self.set_initial_pane_positions()
-        self.load_images()
-        self.protocol("WM_DELETE_WINDOW", self.on_closing)
-        self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)        
+        
+        # Defer loading images until the event loop is idle and geometry is stable.
+        # This prevents a race condition where we ask for the canvas width before it's calculated.
+        self.after(1, self.load_images)
+
+        # Bind events only AFTER the initial layout is complete or scheduled.
         self.gallery_canvas.bind("<Configure>", self._gallery_on_canvas_configure)
+        self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def load_prompt_history(self):
         try:
@@ -206,6 +215,7 @@ class WallpaperApp(tk.Tk):
         self.gallery_grid_frame = tk.Frame(self.gallery_canvas)
         self.gallery_canvas.create_window((0, 0), window=self.gallery_grid_frame, anchor="nw")
         
+        # NOTE: The <Configure> bind was moved to __init__ to prevent startup issues.
         self._gallery_bind_mousewheel(self)
 
         controls_frame = tk.Frame(self)
@@ -461,14 +471,11 @@ class WallpaperApp(tk.Tk):
         if messagebox.askyesno("Confirm Deletion", f"Delete '{os.path.basename(path_to_delete)}'?"):
             try:
                 os.remove(path_to_delete)
-
-                # --- FIX APPLIED HERE ---
-                # Always clear the preview and its state, removing the fragile 'if'
+                
                 self.generated_image_label.config(image=None)
-                self.generated_image_label.image = None # Explicitly break the reference
+                self.generated_image_label.image = None
                 self.current_image_path = None
 
-                # Now clear the gallery selection and reload it
                 self.gallery_current_selection = None
                 self.load_images()
             except Exception as e:
