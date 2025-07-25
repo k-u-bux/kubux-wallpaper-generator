@@ -1,21 +1,22 @@
-# vibe coded with Gemini 2.5 Flash (2025-07-23)
-# =============================================
-# Golden Version: [v1.0-golden] - Final with FOUC (Flash of Unstyled Content) Fix
+# kubux wallpaper generator
+# =========================
 
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from tkinter import ttk 
+from tkinter import ttk
 from PIL import Image, ImageTk
 from together import Together
 from dotenv import load_dotenv
 import platform
-import uuid 
-import threading 
-import tkinter.font as tkFont 
-import json 
-import requests 
+import uuid
+import threading
+import tkinter.font as tkFont
+import json
+import requests
 from datetime import datetime
+import hashlib  # <-- NEW IMPORT for hashing image paths for unique filenames
+import shutil   # <-- already there, useful for copy operations
 
 # Load environment variables
 load_dotenv()
@@ -27,12 +28,15 @@ if not TOGETHER_API_KEY:
 
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, ".config", "kubux-wallpaper-generator")
+CACHE_DIR = os.path.join(HOME_DIR, ".cache", "kubux-wallpaper-generator")
+THUMBNAIL_CACHE_ROOT = os.path.join(CACHE_DIR, "thumbnails")
 IMAGE_DIR = os.path.join(CONFIG_DIR, "images")
 DEFAULT_THUMBNAIL_DIM = 192
 PROMPT_HISTORY_FILE = os.path.join(CONFIG_DIR, "prompt_history.json")
 APP_SETTINGS_FILE = os.path.join(CONFIG_DIR, "app_settings.json")    
 
 os.makedirs(IMAGE_DIR, exist_ok=True)
+os.makedirs(THUMBNAIL_CACHE_ROOT, exist_ok=True)
 
 # --- Wallpaper Setting Functions (Platform-Specific) ---
 def set_wallpaper(image_path):
@@ -364,18 +368,66 @@ class WallpaperApp(tk.Tk):
         self._gallery_refresh_display()
 
     def _gallery_get_thumbnail(self, img_path):
-        cache_key = f"{img_path}_{self.gallery_thumbnail_max_size}"
-        if cache_key not in self.gallery_thumbnails_cache:
-            try:
-                img = Image.open(img_path)
-                img.thumbnail((self.gallery_thumbnail_max_size, self.gallery_thumbnail_max_size))
-                self.gallery_thumbnails_cache[cache_key] = ImageTk.PhotoImage(img)
-            except Exception as e:
-                print(f"Error loading thumbnail for {img_path}: {e}")
-                return None
-        return self.gallery_thumbnails_cache.get(cache_key)
-
-    # --- FIX: Modified <Configure> handler ---
+                # 1. Generate a unique key for the IN-MEMORY cache (session-based)
+                # This key combines the original image path and the desired thumbnail size.
+                # This cache will store the actual PhotoImage objects for the current session.
+                in_memory_cache_key = f"{img_path}_{self.gallery_thumbnail_max_size}"
+    
+                # 2. Check the in-memory cache first (fastest lookup for repeated access in session)
+                if in_memory_cache_key in self.gallery_thumbnails_cache:
+                    return self.gallery_thumbnails_cache.get(in_memory_cache_key)
+    
+                # 3. Define the ON-DISK cache path structure for this specific thumbnail size
+                thumbnail_size_str = str(self.gallery_thumbnail_max_size)
+                thumbnail_cache_subdir = os.path.join(THUMBNAIL_CACHE_ROOT, thumbnail_size_str)
+                os.makedirs(thumbnail_cache_subdir, exist_ok=True) # Ensure subdir for this size exists
+    
+                # 4. Generate a stable filename for the cached thumbnail on disk.
+                #    Using a SHA256 hash of the original image's full path ensures:
+                #    - A unique filename for each original image within a size directory.
+                #    - No issues with special characters or long paths in filenames.
+                filename_hash = hashlib.sha256(img_path.encode('utf-8')).hexdigest()
+                cached_thumbnail_path = os.path.join(thumbnail_cache_subdir, f"{filename_hash}.png")
+    
+                pil_image_thumbnail = None # Will hold the PIL Image object (thumbnail size)
+    
+                try:
+                    if os.path.exists(cached_thumbnail_path):
+                        # 5. If the thumbnail already exists on disk, load it directly
+                        #    It's already a thumbnail, so no need to resize again.
+                        pil_image_thumbnail = Image.open(cached_thumbnail_path)
+                    else:
+                        # 6. If the thumbnail does NOT exist on disk:
+                        #    a. Load the original full-size image
+                        full_img = Image.open(img_path)
+                        
+                        #    b. Rescale it to thumbnail size (in-place)
+                        full_img.thumbnail((self.gallery_thumbnail_max_size, self.gallery_thumbnail_max_size))
+                        pil_image_thumbnail = full_img # Now, pil_image_thumbnail holds the resized PIL image
+    
+                        #    c. Save the newly generated thumbnail to disk for future use
+                        pil_image_thumbnail.save(cached_thumbnail_path) 
+    
+                    # 7. Convert the PIL Image (whether loaded from disk or newly generated) to a Tkinter PhotoImage
+                    tk_thumbnail = ImageTk.PhotoImage(pil_image_thumbnail)
+                    
+                    # 8. Store the PhotoImage object in the in-memory cache for this session's quick access
+                    self.gallery_thumbnails_cache[in_memory_cache_key] = tk_thumbnail
+                    
+                    return tk_thumbnail
+    
+                except Exception as e:
+                    # Handle any errors during image loading, processing, or saving
+                    print(f"Error loading/creating thumbnail for {img_path}: {e}")
+                    # If there was an error, ensure any potentially corrupted cached file is removed
+                    if os.path.exists(cached_thumbnail_path):
+                        try:
+                            os.remove(cached_thumbnail_path)
+                            print(f"Removed corrupted thumbnail: {cached_thumbnail_path}")
+                        except Exception as ex:
+                            print(f"Could not remove corrupted thumbnail file: {ex}")
+                    return None # Return None if thumbnail creation fails
+    
     def _gallery_on_canvas_configure(self, event):
         # On the very first configure event that has a real width, load images.
         if not self._initial_load_done and event.width > 1:
