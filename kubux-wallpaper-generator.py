@@ -60,10 +60,17 @@ def set_wallpaper(image_path):
 # --- Together.ai Image Generation ---
 client = Together(api_key=TOGETHER_API_KEY)
 
-def generate_image(prompt, model="stabilityai/stable-diffusion-xl-base-1.0", width=1024, height=1024, steps=20):
+def generate_image(prompt, model="black-forest-labs/FLUX.1-pro", width=1184, height=736, steps=28):
     try:
-        response = client.images.generate(prompt=prompt, model=model, width=width, height=height, steps=steps)
-        return response.data[0].url
+        response = client.images.generate(
+            prompt=prompt,
+            model=model,
+            width=width,
+            height=height,
+            steps=steps
+        )
+        image_url = response.data[0].url
+        return image_url
     except Exception as e:
         messagebox.showerror("API Error", f"Error generating image: {e}")
         return None
