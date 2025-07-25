@@ -14,6 +14,8 @@ import threading
 import tkinter.font as tkFont
 import json
 import requests
+import base64
+import secrets
 from datetime import datetime
 import hashlib  # <-- NEW IMPORT for hashing image paths for unique filenames
 import shutil   # <-- already there, useful for copy operations
@@ -30,6 +32,7 @@ HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, ".config", "kubux-wallpaper-generator")
 CACHE_DIR = os.path.join(HOME_DIR, ".cache", "kubux-wallpaper-generator")
 THUMBNAIL_CACHE_ROOT = os.path.join(CACHE_DIR, "thumbnails")
+DOWNLOAD_DIR = os.path.join(HOME_DIR, "Pictures", "kubux-wallpaper-generator")
 IMAGE_DIR = os.path.join(CONFIG_DIR, "images")
 DEFAULT_THUMBNAIL_DIM = 192
 PROMPT_HISTORY_FILE = os.path.join(CONFIG_DIR, "prompt_history.json")
@@ -37,6 +40,7 @@ APP_SETTINGS_FILE = os.path.join(CONFIG_DIR, "app_settings.json")
 
 os.makedirs(IMAGE_DIR, exist_ok=True)
 os.makedirs(THUMBNAIL_CACHE_ROOT, exist_ok=True)
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # --- Wallpaper Setting Functions (Platform-Specific) ---
 def set_wallpaper(image_path):
@@ -79,16 +83,24 @@ def generate_image(prompt, model="black-forest-labs/FLUX.1-pro", width=1184, hei
         messagebox.showerror("API Error", f"Error generating image: {e}")
         return None
 
-def download_image(url, save_path):
+def download_image(url, file_name):
     try:
+        save_path = os.path.join(DOWNLOAD_DIR,file_name)
+        link_path = os.path.join(IMAGE_DIR,file_name)
         response = requests.get(url, stream=True)
         response.raise_for_status() 
         with open(save_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
-        return True
+        os.symlink(save_path, link_path)
+        return link_path
     except Exception as e:
         messagebox.showerror("Download Error", f"Failed to download image: {e}")
-        return False
+        return None
+
+def unique_name(file_path,mode):
+    base, ext = os.path.splitext(file_path)
+    uniq_id = base64.b64encode(secrets.token_bytes(18)).decode('ascii')
+    return f"{datetime.now().strftime('%Y-%m-%d')}_{mode}_{uniq_id}{ext}"
 
 # --- GUI Application ---
 class WallpaperApp(tk.Tk):
@@ -550,16 +562,16 @@ class WallpaperApp(tk.Tk):
     def on_generate_button_click(self):
         prompt = self.prompt_text_widget.get("1.0", tk.END).strip()
         if not prompt: return messagebox.showwarning("Input Error", "Please enter a prompt.")
+        self.add_prompt_to_history(prompt)
         self.generate_button.config(text="Generating...", state="disabled")
         threading.Thread(target=self._run_generation_task, args=(prompt,), daemon=True).start()
 
     def _run_generation_task(self, prompt):
         image_url = generate_image(prompt)
         if image_url:
-            filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{uuid.uuid4().hex[:6]}.png"
-            save_path = os.path.join(IMAGE_DIR, filename)
-            if download_image(image_url, save_path):
-                self.add_prompt_to_history(prompt)
+            file_name = unique_name("dummy.png","generated")
+            save_path = download_image(image_url, file_name)
+            if save_path:
                 self.after(0, self.load_images_and_select, save_path)
         self.after(0, self.generate_button.config, {'text':"Generate", 'state':"normal"})
 
@@ -571,19 +583,15 @@ class WallpaperApp(tk.Tk):
         file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.png *.jpg *.jpeg")])
         if not file_path: return
         try:
-            ext = os.path.splitext(file_path)[1]
-            filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_manual{ext}"
-            dest = os.path.join(IMAGE_DIR, filename)
-            import shutil
-            shutil.copy(file_path, dest)
+            file_name = unique_name(file_path,"manual")
+            dest = os.path.join(IMAGE_DIR, file_name)
+            os.symlink(file_path,dest)
             self.load_images_and_select(dest)
         except Exception as e: messagebox.showerror("File Error", f"Failed to add image: {e}")
 
     def delete_selected_image(self):
         path_to_delete = self.gallery_current_selection
-        if not path_to_delete or not os.path.exists(path_to_delete):
-            return messagebox.showwarning("Deletion Error", "No image selected.")
-        if messagebox.askyesno("Confirm Deletion", f"Delete '{os.path.basename(path_to_delete)}'?"):
+        if path_to_delete and os.path.exists(path_to_delete):
             try:
                 os.remove(path_to_delete)
                 self.generated_image_label.config(image=None)
