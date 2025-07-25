@@ -1,6 +1,6 @@
 # vibe coded with Gemini 2.5 Flash (2025-07-23)
 # =============================================
-# Golden Version: [v1.0-golden] - with Generate fix and Prompt History (Corrected Location)
+# Golden Version: [v1.0-golden] - with Generate fix, Prompt History, and CORRECT Keyboard Scrolling
 
 import os
 import tkinter as tk
@@ -95,7 +95,6 @@ class WallpaperApp(tk.Tk):
         try:
             self.tk.call('wm', 'class', self._w, 'io.github.kubux.wallpaper-generator')
         except tk.TclError: pass
-
         
         self.current_image_path = None
         self.max_history_items = 25
@@ -219,6 +218,10 @@ class WallpaperApp(tk.Tk):
         self.gallery_canvas.create_window((0, 0), window=self.gallery_grid_frame, anchor="nw")
         
         self._gallery_bind_mousewheel(self)
+        
+        self.gallery_canvas.bind("<Key>", self._gallery_on_key_press)
+        self.gallery_canvas.bind("<Enter>", lambda e: self.gallery_canvas.focus_set())
+        self.gallery_canvas.bind("<Leave>", lambda e: self.focus_set())
 
         controls_frame = tk.Frame(self)
         controls_frame.pack(fill="x", pady=(5, 0))
@@ -228,8 +231,6 @@ class WallpaperApp(tk.Tk):
         generate_btn_frame.grid(row=0, column=0, sticky="w")
         self.generate_button = ttk.Button(generate_btn_frame, text="Generate", command=self.on_generate_button_click)
         self.generate_button.pack(side="left", padx=(0,2))
-        
-        # --- BUTTON MOVED HERE ---
         self.history_button = ttk.Button(generate_btn_frame, text="History", command=self._show_prompt_history)
         self.history_button.pack(side="left")
 
@@ -412,6 +413,31 @@ class WallpaperApp(tk.Tk):
         if platform.system() == "Windows": self.gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         elif event.num == 4: self.gallery_canvas.yview_scroll(-1, "units")
         elif event.num == 5: self.gallery_canvas.yview_scroll(1, "units")
+        
+    # --- KEYBOARD SCROLLING METHOD (CORRECTED) ---
+    def _gallery_on_key_press(self, event):
+        key = event.keysym
+        
+        if key == 'Up':
+            self.gallery_canvas.yview_scroll(-1, "units")
+        elif key == 'Down':
+            self.gallery_canvas.yview_scroll(1, "units")
+        elif key == 'Left': # Accelerated scroll up
+            self.gallery_canvas.yview_scroll(-5, "units")
+        elif key == 'Right': # Accelerated scroll down
+            self.gallery_canvas.yview_scroll(5, "units")
+        elif key == 'Prior': # Page Up
+            self.gallery_canvas.yview_scroll(-1, "pages")
+        elif key == 'Next': # Page Down
+            self.gallery_canvas.yview_scroll(1, "pages")
+        elif key == 'Home':
+            self.gallery_canvas.yview_moveto(0.0)
+        elif key == 'End':
+            self.gallery_canvas.yview_moveto(1.0)
+        else:
+            return # Do nothing for other keys
+
+        return 'break' # Stop the event from propagating further
 
     # --- Core App Actions ---
     def add_prompt_to_history(self, prompt):
