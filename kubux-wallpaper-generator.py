@@ -2,6 +2,7 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk
+from tkinter import TclError
 from PIL import Image, ImageTk
 from together import Together
 from dotenv import load_dotenv
@@ -171,6 +172,183 @@ def unique_name(original_path, category):
 
     # Return the full unique filename with the original extension
     return f"{base_name}{ext}"
+
+# Helper function for DirectoryThumbnailGrid
+def list_image_files(directory_path):
+    if not os.path.isdir(directory_path):
+        return []
+    image_files = []
+    for filename in os.listdir(directory_path):
+        f_path = os.path.join(directory_path, filename)
+        if os.path.isfile(f_path) and filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
+            image_files.append(f_path)
+    image_files.sort()
+    return image_files
+
+class DirectoryThumbnailGrid(tk.Frame):
+    def __init__(self, master=None, directory_path="", item_fixed_width=192, 
+                 button_config_callback=None, **kwargs):
+        super().__init__(master, **kwargs)
+        
+        self._directory_path = directory_path
+        self._item_fixed_width = item_fixed_width
+        self._button_config_callback = button_config_callback 
+        self._active_widgets = {} # This is a dict: img_path -> (tk.Button, ImageTk.PhotoImage)
+        self._last_known_width = -1 
+        
+        self.bind("<Configure>", self._on_resize)
+
+    def set_directory_path(self, path):
+        if self._directory_path != path:
+            self._directory_path = path
+            self.regrid()
+
+    def set_item_width(self, width):
+        if self._item_fixed_width != width:
+            self._item_fixed_width = width
+            self.regrid()
+
+    def regrid(self):
+        new_image_paths_from_disk = list_image_files(self._directory_path)
+        # Note: Since the helper returns sorted (oldest first), we need to reverse it
+        # to match the existing behavior of showing newest first
+        new_image_paths_from_disk.reverse()
+        
+        previous_widgets_and_images = self._active_widgets # This is the old dict {path: (btn, img)}
+        self._active_widgets = {} # Initialize the new active widgets dict
+        
+        # Un-grid all previously active buttons
+        for btn, _ in previous_widgets_and_images.values():
+            if btn is not None and btn.winfo_exists():
+                btn.grid_forget()
+
+        # Create/reuse and configure buttons for the new set of image paths
+        for img_path in new_image_paths_from_disk:
+            # Try to get previous button and its associated image
+            prev_btn, prev_tk_image = previous_widgets_and_images.get(img_path, (None, None)) 
+            
+            target_btn = prev_btn
+            if target_btn is None:
+                target_btn = tk.Button(self)
+                
+            # Configure the button and get the PhotoImage back
+            current_tk_image_ref = self._configure_thumbnail_button_internal(target_btn, img_path, prev_tk_image)
+            
+            # Store the button AND the PhotoImage together as a tuple
+            self._active_widgets[img_path] = (target_btn, current_tk_image_ref)
+            
+            # Remove from previous_widgets_and_images so we know which ones weren't reused
+            if img_path in previous_widgets_and_images:
+                del previous_widgets_and_images[img_path] 
+
+        # Destroy any buttons (and implicitly release their images) that were not reused
+        for btn, _ in previous_widgets_and_images.values():
+            if btn is not None and btn.winfo_exists():
+                btn.destroy()
+
+        self._perform_grid_layout() 
+
+    def _on_resize(self, event=None):
+        self.update_idletasks()
+        current_width = self.winfo_width() 
+        if event is not None and event.width > 0:
+            current_width = event.width
+            
+        if current_width <= 0 or current_width == self._last_known_width:
+            return
+            
+        self._last_known_width = current_width
+
+        desired_content_cols_for_width = self._calculate_columns(current_width)
+        if desired_content_cols_for_width == 0:
+            desired_content_cols_for_width = 1 
+
+        actual_tk_total_cols = 0
+        try:
+            actual_tk_total_cols = self.grid_size()[0]
+        except TclError:
+            pass 
+
+        actual_tk_content_cols = 0
+        if actual_tk_total_cols >= 2: 
+            actual_tk_content_cols = actual_tk_total_cols - 2
+        elif actual_tk_total_cols > 0:
+            actual_tk_content_cols = actual_tk_total_cols
+
+        if desired_content_cols_for_width != actual_tk_content_cols:
+            self._perform_grid_layout() 
+
+    def _calculate_columns(self, frame_width):
+        if frame_width <= 0: return 1
+        item_total_occupancy_width = self._item_fixed_width + (2 * 2) 
+        buffer_for_gutters_and_edges = 10 
+        available_width_for_items = frame_width - buffer_for_gutters_and_edges
+        if available_width_for_items <= 0: return 1
+        calculated_cols = max(1, available_width_for_items // item_total_occupancy_width)
+        return min(calculated_cols, 10)
+
+    def _perform_grid_layout(self):
+        desired_content_cols_for_this_pass = self._calculate_columns(self.winfo_width())
+        if desired_content_cols_for_this_pass == 0:
+            desired_content_cols_for_this_pass = 1 
+
+        current_configured_cols = 0
+        try:
+            current_configured_cols = self.grid_size()[0]
+        except TclError:
+            pass
+        for i in range(current_configured_cols):
+            self.grid_columnconfigure(i, weight=0)
+            
+        self.grid_columnconfigure(0, weight=1)  
+        self.grid_columnconfigure(desired_content_cols_for_this_pass + 1, weight=1) 
+
+        # Widget Placement Loop
+        for i, img_path in enumerate(self._active_widgets.keys()):
+            widget, _ = self._active_widgets.get(img_path) 
+            
+            if widget is None or not widget.winfo_exists():
+                print(f"Warning: Attempted to layout a non-existent widget for path '{img_path}'. Skipping.")
+                continue
+            row, col_idx = divmod(i, desired_content_cols_for_this_pass)
+            grid_column = col_idx + 1 
+            widget.grid(row=row, column=grid_column, padx=2, pady=2) 
+        
+        self.update_idletasks()
+        
+    def _configure_thumbnail_button_internal(self, btn, img_path, current_tk_image=None):
+        setattr(btn, '_associated_image_path', img_path) 
+        
+        thumbnail_pil = get_or_make_thumbnail(img_path, self._item_fixed_width)
+        tk_thumbnail = None
+        if thumbnail_pil:
+            try:
+                tk_thumbnail = ImageTk.PhotoImage(thumbnail_pil)
+            except Exception as e:
+                print(f"Error converting PIL image to ImageTk.PhotoImage for {img_path}: {e}")
+        
+        # Assign the image to the button if it's new or changed
+        if tk_thumbnail is not None and (current_tk_image is None or id(tk_thumbnail) != id(current_tk_image)):
+            btn.config(image=tk_thumbnail)
+            btn.image = tk_thumbnail
+        elif tk_thumbnail is None and btn.image is not None: 
+            btn.config(image=None)
+            btn.image = None
+            
+        if self._button_config_callback:
+            self._button_config_callback(btn, img_path, tk_thumbnail)
+        else:
+            btn.config(relief="flat", borderwidth=0, cursor="arrow", command=None)
+            
+        return tk_thumbnail
+
+    def destroy(self):
+        for btn, _ in self._active_widgets.values(): 
+            if btn is not None and btn.winfo_exists():
+                btn.image = None
+                btn.destroy() 
+        self._active_widgets.clear()
+        super().destroy()
 
 # --- GUI Application ---
 
@@ -479,8 +657,6 @@ class WallpaperApp(tk.Tk):
         
         self.current_image_path = None
         self.max_history_items = 25
-        self.gallery_image_files = []
-        self.gallery_thumbnails_cache = {}
         self.gallery_current_selection = None
         self.gallery_thumbnail_max_size = DEFAULT_THUMBNAIL_DIM
         self._gallery_scale_update_after_id = None
@@ -605,14 +781,23 @@ class WallpaperApp(tk.Tk):
         self.gallery_canvas.config(yscrollcommand=self.gallery_scrollbar.set)
         self.gallery_scrollbar.pack(side="right", fill="y")
         self.gallery_canvas.pack(side="left", fill="both", expand=True)
-        self.gallery_grid_frame = tk.Frame(self.gallery_canvas)
-        self.gallery_canvas.create_window((0, 0), window=self.gallery_grid_frame, anchor="nw")
+        
+        self.gallery_grid = DirectoryThumbnailGrid(
+            self.gallery_canvas, 
+            directory_path=IMAGE_DIR,
+            item_fixed_width=self.gallery_thumbnail_max_size,
+            button_config_callback=self._gallery_configure_button,
+            bg="lightgrey"
+        )
+        self.gallery_canvas.create_window((0, 0), window=self.gallery_grid, anchor="nw")
         
         self._gallery_bind_mousewheel(self)
         
         self.gallery_canvas.bind("<Key>", self._gallery_on_key_press)
         self.gallery_canvas.bind("<Enter>", lambda e: self.gallery_canvas.focus_set())
         self.gallery_canvas.bind("<Leave>", lambda e: self.focus_set())
+
+        self.gallery_grid.bind("<Configure>", lambda e: self.gallery_canvas.configure(scrollregion=self.gallery_canvas.bbox("all")))
 
         generate_btn_frame = tk.Frame(controls_frame)
         generate_btn_frame.grid(row=0, column=0, sticky="w")
@@ -648,6 +833,18 @@ class WallpaperApp(tk.Tk):
         ttk.Button(action_btn_frame, text="Delete", command=self.delete_selected_image).pack(side="left", padx=24)
         ttk.Button(action_btn_frame, text="Add", command=self.manually_add_images).pack(side="left", padx=24)
         ttk.Button(action_btn_frame, text="Set Wallpaper", command=self.set_current_as_wallpaper).pack(side="left", padx=(24,2))
+
+    def _gallery_configure_button(self, btn, img_path, tk_thumbnail):
+        """Callback to configure gallery buttons."""
+        btn.config(
+            cursor="hand2", 
+            relief="flat", 
+            borderwidth=0,
+            command=lambda p=img_path: self._gallery_on_thumbnail_click(p)
+        )
+        
+        if self.gallery_current_selection == img_path:
+            btn.config(relief="solid", borderwidth=2, highlightbackground="blue")
 
     def set_initial_pane_positions(self):
         try:
@@ -703,39 +900,7 @@ class WallpaperApp(tk.Tk):
     
     # --- Gallery Methods ---
     def load_images(self):
-        try:
-            self.gallery_image_files = sorted([os.path.join(IMAGE_DIR, f) for f in os.listdir(IMAGE_DIR) if f.lower().endswith(('.png', '.jpg', '.jpeg'))], reverse=True)
-        except OSError:
-            self.gallery_image_files = []
-        self._gallery_refresh_display()
-
-    def _gallery_refresh_display(self):
-        for widget in self.gallery_grid_frame.winfo_children():
-            widget.destroy()
-        try:
-            old_num_columns = self.gallery_grid_frame.grid_size()[0]
-            for i in range(old_num_columns):
-                self.gallery_grid_frame.grid_columnconfigure(i, weight=0)
-        except IndexError: pass
-        if not self.gallery_image_files:
-            self.gallery_grid_frame.update_idletasks()
-            self.gallery_canvas.config(scrollregion=self.gallery_canvas.bbox("all"))
-            return
-        thumbnail_cols = self._gallery_calculate_columns()
-        self.gallery_grid_frame.grid_columnconfigure(0, weight=1)
-        self.gallery_grid_frame.grid_columnconfigure(thumbnail_cols + 1, weight=1)
-        for i, img_path in enumerate(self.gallery_image_files):
-            row, col = divmod(i, thumbnail_cols)
-            thumbnail = ImageTk.PhotoImage(get_or_make_thumbnail(img_path, self.gallery_thumbnail_max_size))
-            if thumbnail:
-                btn = tk.Button(self.gallery_grid_frame, image=thumbnail, command=lambda p=img_path: self._gallery_on_thumbnail_click(p),
-                                cursor="hand2", relief="flat", borderwidth=0)
-                btn.image = thumbnail
-                btn.grid(row=row, column=col + 1, padx=2, pady=2)
-                if self.gallery_current_selection == img_path:
-                    btn.config(relief="solid", borderwidth=2, highlightbackground="blue")
-        self.gallery_grid_frame.update_idletasks()
-        self.gallery_canvas.config(scrollregion=self.gallery_canvas.bbox("all"))
+        self.gallery_grid.regrid()
 
     def _gallery_update_thumbnail_scale_callback(self, value):
         if self._gallery_scale_update_after_id: self.after_cancel(self._gallery_scale_update_after_id)
@@ -744,8 +909,7 @@ class WallpaperApp(tk.Tk):
     def _gallery_do_scale_update(self, scale):
         self.current_thumbnail_scale = scale
         self.gallery_thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * scale)
-        self.gallery_thumbnails_cache.clear()
-        self._gallery_refresh_display()
+        self.gallery_grid.set_item_width(self.gallery_thumbnail_max_size)
 
     def _gallery_on_canvas_configure(self, event):
         if not self._initial_load_done and event.width > 1:
@@ -758,16 +922,7 @@ class WallpaperApp(tk.Tk):
 
     def _do_gallery_resize_refresh(self, event):
         self.gallery_canvas.itemconfig(self.gallery_canvas.find_all()[0], width=event.width)
-        try: current_columns = self.gallery_grid_frame.grid_size()[0] - 2
-        except IndexError: current_columns = 0
-        new_columns = self._gallery_calculate_columns()
-        if new_columns != current_columns and new_columns > 0: self._gallery_refresh_display()
-
-    def _gallery_calculate_columns(self):
-        available_width = self.gallery_canvas.winfo_width()
-        if available_width <= 1: return 1
-        thumb_width_with_padding = self.gallery_thumbnail_max_size + 4 
-        return max(1, (available_width - 20) // thumb_width_with_padding)
+        self.gallery_grid._on_resize()
 
     def _gallery_on_thumbnail_click(self, image_path):
         old_selection = self.gallery_current_selection
@@ -776,12 +931,8 @@ class WallpaperApp(tk.Tk):
         self.display_image(image_path)
 
     def _gallery_update_selection_highlight(self, old_path, new_path):
-        for widget in self.gallery_grid_frame.winfo_children():
-            if isinstance(widget, tk.Button):
-                try: cmd_str = str(widget['command'])
-                except (tk.TclError, KeyError): self._gallery_refresh_display(); return
-                if old_path and old_path in cmd_str: widget.config(relief="flat", borderwidth=0)
-                if new_path and new_path in cmd_str: widget.config(relief="solid", borderwidth=2, highlightbackground="blue")
+        # Trigger a regrid to update button highlighting
+        self.gallery_grid.regrid()
 
     def _gallery_bind_mousewheel(self, widget):
         widget.bind("<MouseWheel>", self._gallery_on_mousewheel, add="+")
