@@ -420,8 +420,7 @@ class ImagePickerDialog(tk.Toplevel):
         self.gallery_grid.bind("<Configure>", lambda e: self.gallery_canvas.configure(scrollregion=self.gallery_canvas.bbox("all")))
         self.gallery_grid.regrid()
         
-        self._bind_mousewheel(self.gallery_canvas)
-        self._bind_mousewheel(self.gallery_grid)
+        self._bind_mousewheel(self)
 
         self.bind("<Up>", lambda e: self.gallery_canvas.yview_scroll(-1, "units"))
         self.bind("<Down>", lambda e: self.gallery_canvas.yview_scroll(1, "units"))
@@ -593,20 +592,16 @@ class ImagePickerDialog(tk.Toplevel):
         self.gallery_grid._on_resize()
 
     def _bind_mousewheel(self, widget):
-        """Binds mousewheel events for scrolling within the ImagePickerDialog's canvas."""
-        def on_mousewheel_local(event):
-            if platform.system() == "Windows": 
-                self.gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            elif event.num == 4:
-                self.gallery_canvas.yview_scroll(-1, "units")
-            elif event.num == 5:
-                self.gallery_canvas.yview_scroll(1, "units")
+        widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
+        widget.bind("<Button-4>", lambda e: self._on_mousewheel(e), add="+")
+        widget.bind("<Button-5>", lambda e: self._on_mousewheel(e), add="+")
+
+    def _on_mousewheel(self, event):
+        if platform.system() == "Windows": self.gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        elif event.num == 4: self.gallery_canvas.yview_scroll(-1, "units")
+        elif event.num == 5: self.gallery_canvas.yview_scroll(1, "units")
+
         
-        widget.bind("<MouseWheel>", on_mousewheel_local, add="+")
-        widget.bind("<Button-4>", lambda e: on_mousewheel_local(e), add="+")
-        widget.bind("<Button-5>", lambda e: on_mousewheel_local(e), add="+")
-
-
 class WallpaperApp(tk.Tk):
     def __init__(self):
         super().__init__()
