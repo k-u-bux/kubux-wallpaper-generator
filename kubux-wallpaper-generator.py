@@ -363,9 +363,7 @@ class DirectoryThumbnailGrid(tk.Frame):
 class ImagePickerDialog(tk.Toplevel):
     def __init__(self, master, thumbnail_max_size, image_dir_path):
         super().__init__(master)
-        self.title("Add Images to Collection")
-        self.transient(master)
-        self.grab_set()
+        self.withdraw()
 
         self.master_app = master
         self.thumbnail_max_size = thumbnail_max_size
@@ -388,11 +386,26 @@ class ImagePickerDialog(tk.Toplevel):
         self.selected_files = {}
 
         self.create_widgets()
-        self._load_geometry()
-        self._browse_directory(self.current_directory)
 
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
         
+
+    def hide(self):
+        self.grab_release()
+        self.withdraw()
+
+    def show(self, thumbnail_max_size, image_dir_path):
+        self.thumbnail_max_size = thumbnail_max_size
+        self.image_dir_path = image_dir_path
+        self.deiconify()
+        self._load_geometry()
+        self._browse_directory(self.current_directory)
+        self.title("Add Images to Collection")
+        self.transient(self.master)
+        self.grab_set()
+        self.update_idletasks()
+        self.gallery_grid.regrid()
+        self.update_idletasks()
         self.after(100, self.focus_set)
 
     def create_widgets(self):
@@ -472,7 +485,7 @@ class ImagePickerDialog(tk.Toplevel):
     def _on_closing(self):
         """Handler for window close, saves geometry then destroys."""
         self._save_geometry()
-        self.destroy()
+        self.hide()
 
     def _save_geometry(self):
         """Saves the current dialog geometry AND current directory to app settings."""
@@ -580,7 +593,7 @@ class ImagePickerDialog(tk.Toplevel):
         """Callback for 'Add Selected' button, saves geometry and adds files."""
         self._save_geometry()
         self.master_app.add_multiple_images_as_symlinks(list(self.selected_files.keys()))
-        self.destroy()
+        self.hide()
 
     def get_selected_paths(self):
         """Returns the list of currently selected image file paths."""
@@ -635,6 +648,9 @@ class WallpaperApp(tk.Tk):
         self.gallery_canvas.bind("<Configure>", self._gallery_on_canvas_configure)
         self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, IMAGE_DIR)
+
 
     def load_prompt_history(self):
         try:
@@ -1028,8 +1044,7 @@ class WallpaperApp(tk.Tk):
            self.load_images()
 
     def manually_add_images(self):
-        dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, IMAGE_DIR)
-        self.wait_window(dialog)
+        self.dialog.show(self.gallery_thumbnail_max_size, IMAGE_DIR)
 
     def delete_selected_image(self):
         path_to_delete = self.gallery_current_selection
