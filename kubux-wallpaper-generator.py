@@ -198,6 +198,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         self._directory_path = directory_path
         self._item_fixed_width = item_fixed_width
         self._button_config_callback = button_config_callback 
+        self._known_widgets = {} # This is a dict: (img_path, thumbnail_size) -> (tk.Button, ImageTk.PhotoImage)
         self._active_widgets = {} # This is a dict: img_path -> (tk.Button, ImageTk.PhotoImage)
         self._last_known_width = -1 
 
@@ -218,39 +219,29 @@ class DirectoryThumbnailGrid(tk.Frame):
         # Note: Since the helper returns sorted (oldest first), we need to reverse it
         # to match the existing behavior of showing newest first
         new_image_paths_from_disk.reverse()
-        
-        previous_widgets_and_images = self._active_widgets # This is the old dict {path: (btn, img)}
-        self._active_widgets = {} # Initialize the new active widgets dict
-        
-        # Un-grid all previously active buttons
-        for btn, _ in previous_widgets_and_images.values():
-            if btn is not None and btn.winfo_exists():
-                btn.grid_forget()
+
+        for btn, _ in self._active_widgets.values():
+            assert btn is not None
+            assert btn.winfo_exists()
+            btn.grid_forget()
+
+        self._active_widgets = {}
 
         # Create/reuse and configure buttons for the new set of image paths
         for img_path in new_image_paths_from_disk:
             # Try to get previous button and its associated image
-            prev_btn, prev_tk_image = previous_widgets_and_images.get(img_path, (None, None)) 
-            
-            target_btn = prev_btn
+            target_btn, tk_image = self._known_widgets.get((img_path,self._item_fixed_width), (None, None)) 
+
             if target_btn is None:
                 target_btn = tk.Button(self)
                 
             # Configure the button and get the PhotoImage back
-            current_tk_image_ref = self._configure_thumbnail_button_internal(target_btn, img_path, prev_tk_image)
+            tk_image_ref = self._configure_thumbnail_button_internal(target_btn, img_path, tk_image)
             
             # Store the button AND the PhotoImage together as a tuple
-            self._active_widgets[img_path] = (target_btn, current_tk_image_ref)
+            self._known_widgets[(img_path, self._item_fixed_width)] = (target_btn, tk_image_ref)
+            self._active_widgets[img_path] = (target_btn, tk_image_ref)
             
-            # Remove from previous_widgets_and_images so we know which ones weren't reused
-            if img_path in previous_widgets_and_images:
-                del previous_widgets_and_images[img_path] 
-
-        # Destroy any buttons (and implicitly release their images) that were not reused
-        for btn, _ in previous_widgets_and_images.values():
-            if btn is not None and btn.winfo_exists():
-                btn.destroy()
-
         self._perform_grid_layout() 
 
     def _on_resize(self, event=None):
@@ -404,7 +395,7 @@ class ImagePickerDialog(tk.Toplevel):
         self.transient(self.master)
         self.grab_set()
         self.update_idletasks()
-        self.gallery_grid.regrid()
+        self.gallery_grid.set_item_width(self.thumbnail_max_size)
         self.update_idletasks()
         self.after(100, self.focus_set)
 
@@ -649,8 +640,8 @@ class WallpaperApp(tk.Tk):
         self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, IMAGE_DIR)
-
+        self.update_idletasks()
+        self.dialog = None
 
     def load_prompt_history(self):
         try:
@@ -1044,6 +1035,8 @@ class WallpaperApp(tk.Tk):
            self.load_images()
 
     def manually_add_images(self):
+        if self.dialog is None:
+            self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, IMAGE_DIR)
         self.dialog.show(self.gallery_thumbnail_max_size, IMAGE_DIR)
 
     def delete_selected_image(self):
