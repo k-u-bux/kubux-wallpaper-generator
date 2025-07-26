@@ -42,6 +42,70 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 os.makedirs(THUMBNAIL_CACHE_ROOT, exist_ok=True)
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
+
+# --- Caching thumbnails ---
+GLOBAL_PIL_THUMBNAIL_CACHE = {}
+
+def get_or_make_thumbnail(img_path, thumbnail_max_size):
+            # 1. Generate a unique key for the IN-MEMORY cache (session-based)
+            # This key combines the original image path and the desired thumbnail size.
+            # This cache will store PIL.Image.Image objects.
+            in_memory_cache_key = f"{img_path}_{thumbnail_max_size}"
+
+            # 2. Check the in-memory cache first (fastest lookup for repeated access in session)
+            if in_memory_cache_key in GLOBAL_PIL_THUMBNAIL_CACHE:
+                return GLOBAL_PIL_THUMBNAIL_CACHE.get(in_memory_cache_key)
+
+            # 3. Define the ON-DISK cache path structure for this specific thumbnail size
+            thumbnail_size_str = str(thumbnail_max_size)
+            thumbnail_cache_subdir = os.path.join(THUMBNAIL_CACHE_ROOT, thumbnail_size_str)
+            os.makedirs(thumbnail_cache_subdir, exist_ok=True) # Ensure subdir for this size exists
+
+            # 4. Generate a stable filename for the cached thumbnail on disk.
+            #    Using a SHA256 hash of the original image's full path ensures:
+            #    - A unique filename for each original image within a size directory.
+            #    - No issues with special characters or long paths in filenames.
+            filename_hash = hashlib.sha256(img_path.encode('utf-8')).hexdigest()
+            cached_thumbnail_path = os.path.join(thumbnail_cache_subdir, f"{filename_hash}.png")
+
+            pil_image_thumbnail = None # Will hold the PIL Image object (thumbnail size)
+
+            try:
+                if os.path.exists(cached_thumbnail_path):
+                    # 5. If the thumbnail already exists on disk, load it directly
+                    #    It's already a thumbnail, so no need to resize again.
+                    pil_image_thumbnail = Image.open(cached_thumbnail_path)
+                else:
+                    # 6. If the thumbnail does NOT exist on disk:
+                    #    a. Load the original full-size image
+                    full_img = Image.open(img_path)
+                    
+                    #    b. Rescale it to thumbnail size (in-place)
+                    full_img.thumbnail((thumbnail_max_size, thumbnail_max_size))
+                    pil_image_thumbnail = full_img # Now, pil_image_thumbnail holds the resized PIL image
+
+                    #    c. Save the newly generated thumbnail to disk for future use
+                    pil_image_thumbnail.save(cached_thumbnail_path) 
+
+                # 7. Cache the thumbnails in the in-memory cache for this session's quick access
+                GLOBAL_PIL_THUMBNAIL_CACHE[in_memory_cache_key] = pil_image_thumbnail
+                
+                return pil_image_thumbnail
+
+            except Exception as e:
+                # Handle any errors during image loading, processing, or saving
+                print(f"Error loading/creating thumbnail for {img_path}: {e}")
+                # If there was an error, ensure any potentially corrupted cached file is removed
+                if os.path.exists(cached_thumbnail_path):
+                    try:
+                        os.remove(cached_thumbnail_path)
+                        print(f"Removed corrupted thumbnail: {cached_thumbnail_path}")
+                    except Exception as ex:
+                        print(f"Could not remove corrupted thumbnail file: {ex}")
+                return None # Return None if thumbnail creation fails
+    
+
+
 # --- Wallpaper Setting Functions (Platform-Specific) ---
 def set_wallpaper(image_path):
     system = platform.system()
@@ -175,14 +239,14 @@ class ImagePickerDialog(tk.Toplevel):
         self.canvas_frame = ttk.Frame(self)
         self.canvas_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self.gallery_canvas = tk.Canvas(self.canvas_frame, bg="white")
+        self.gallery_canvas = tk.Canvas(self.canvas_frame, bg="lightgrey")
         self.gallery_scrollbar = ttk.Scrollbar(self.canvas_frame, orient="vertical", command=self.gallery_canvas.yview)
         self.gallery_canvas.config(yscrollcommand=self.gallery_scrollbar.set)
         
         self.gallery_scrollbar.pack(side="right", fill="y")
         self.gallery_canvas.pack(side="left", fill="both", expand=True)
         
-        self.gallery_grid_frame = tk.Frame(self.gallery_canvas, bg="white")
+        self.gallery_grid_frame = tk.Frame(self.gallery_canvas, bg="lightgrey")
         self.gallery_canvas.create_window((0, 0), window=self.gallery_grid_frame, anchor="nw")
 
         self.gallery_canvas.bind("<Configure>", self._on_canvas_configure)
@@ -327,11 +391,12 @@ class ImagePickerDialog(tk.Toplevel):
         for img_path in image_files:
             row, col = divmod(current_grid_idx, thumbnail_cols)
             
-            thumbnail = self._get_thumbnail(img_path) 
+            thumbnail = ImageTk.PhotoImage(get_or_make_thumbnail(img_path, self.thumbnail_max_size))
             if thumbnail:
                 btn = tk.Button(self.gallery_grid_frame, image=thumbnail, 
                                 command=lambda p=img_path, current_btn=None: self._toggle_selection(p, self.image_widgets[p] if p in self.image_widgets else current_btn),
-                                cursor="hand2", relief="flat", borderwidth=0)
+                                cursor="hand2", relief="flat", borderwidth=0, 
+                                highlightthickness=3, highlightbackground="lightgrey")
                 btn.image = thumbnail # Keep reference to prevent garbage collection
                 btn.grid(row=row, column=col, padx=2, pady=2, sticky="nsew")
                 self.image_widgets[img_path] = btn # Store button for highlighting
@@ -371,9 +436,9 @@ class ImagePickerDialog(tk.Toplevel):
     def _highlight_selection(self, button_widget, is_selected):
         """Applies or removes the selection highlight."""
         if is_selected:
-            button_widget.config(relief="solid", borderwidth=2, highlightbackground="blue")
+            button_widget.config(relief="flat", borderwidth=0, highlightthickness=3, highlightbackground="blue")
         else:
-            button_widget.config(relief="flat", borderwidth=0, highlightbackground="")
+            button_widget.config(relief="flat", borderwidth=0, highlightthickness=3, highlightbackground="lightgrey")
 
     def _on_add_selected(self):
         """Callback for 'Add Selected' button, saves geometry and adds files."""
@@ -686,7 +751,7 @@ class WallpaperApp(tk.Tk):
         self.gallery_grid_frame.grid_columnconfigure(thumbnail_cols + 1, weight=1)
         for i, img_path in enumerate(self.gallery_image_files):
             row, col = divmod(i, thumbnail_cols)
-            thumbnail = self._gallery_get_thumbnail(img_path)
+            thumbnail = ImageTk.PhotoImage(get_or_make_thumbnail(img_path, self.gallery_thumbnail_max_size))
             if thumbnail:
                 btn = tk.Button(self.gallery_grid_frame, image=thumbnail, command=lambda p=img_path: self._gallery_on_thumbnail_click(p),
                                 cursor="hand2", relief="flat", borderwidth=0)
@@ -707,67 +772,6 @@ class WallpaperApp(tk.Tk):
         self.gallery_thumbnails_cache.clear()
         self._gallery_refresh_display()
 
-    def _gallery_get_thumbnail(self, img_path):
-                # 1. Generate a unique key for the IN-MEMORY cache (session-based)
-                # This key combines the original image path and the desired thumbnail size.
-                # This cache will store the actual PhotoImage objects for the current session.
-                in_memory_cache_key = f"{img_path}_{self.gallery_thumbnail_max_size}"
-    
-                # 2. Check the in-memory cache first (fastest lookup for repeated access in session)
-                if in_memory_cache_key in self.gallery_thumbnails_cache:
-                    return self.gallery_thumbnails_cache.get(in_memory_cache_key)
-    
-                # 3. Define the ON-DISK cache path structure for this specific thumbnail size
-                thumbnail_size_str = str(self.gallery_thumbnail_max_size)
-                thumbnail_cache_subdir = os.path.join(THUMBNAIL_CACHE_ROOT, thumbnail_size_str)
-                os.makedirs(thumbnail_cache_subdir, exist_ok=True) # Ensure subdir for this size exists
-    
-                # 4. Generate a stable filename for the cached thumbnail on disk.
-                #    Using a SHA256 hash of the original image's full path ensures:
-                #    - A unique filename for each original image within a size directory.
-                #    - No issues with special characters or long paths in filenames.
-                filename_hash = hashlib.sha256(img_path.encode('utf-8')).hexdigest()
-                cached_thumbnail_path = os.path.join(thumbnail_cache_subdir, f"{filename_hash}.png")
-    
-                pil_image_thumbnail = None # Will hold the PIL Image object (thumbnail size)
-    
-                try:
-                    if os.path.exists(cached_thumbnail_path):
-                        # 5. If the thumbnail already exists on disk, load it directly
-                        #    It's already a thumbnail, so no need to resize again.
-                        pil_image_thumbnail = Image.open(cached_thumbnail_path)
-                    else:
-                        # 6. If the thumbnail does NOT exist on disk:
-                        #    a. Load the original full-size image
-                        full_img = Image.open(img_path)
-                        
-                        #    b. Rescale it to thumbnail size (in-place)
-                        full_img.thumbnail((self.gallery_thumbnail_max_size, self.gallery_thumbnail_max_size))
-                        pil_image_thumbnail = full_img # Now, pil_image_thumbnail holds the resized PIL image
-    
-                        #    c. Save the newly generated thumbnail to disk for future use
-                        pil_image_thumbnail.save(cached_thumbnail_path) 
-    
-                    # 7. Convert the PIL Image (whether loaded from disk or newly generated) to a Tkinter PhotoImage
-                    tk_thumbnail = ImageTk.PhotoImage(pil_image_thumbnail)
-                    
-                    # 8. Store the PhotoImage object in the in-memory cache for this session's quick access
-                    self.gallery_thumbnails_cache[in_memory_cache_key] = tk_thumbnail
-                    
-                    return tk_thumbnail
-    
-                except Exception as e:
-                    # Handle any errors during image loading, processing, or saving
-                    print(f"Error loading/creating thumbnail for {img_path}: {e}")
-                    # If there was an error, ensure any potentially corrupted cached file is removed
-                    if os.path.exists(cached_thumbnail_path):
-                        try:
-                            os.remove(cached_thumbnail_path)
-                            print(f"Removed corrupted thumbnail: {cached_thumbnail_path}")
-                        except Exception as ex:
-                            print(f"Could not remove corrupted thumbnail file: {ex}")
-                    return None # Return None if thumbnail creation fails
-    
     def _gallery_on_canvas_configure(self, event):
         # On the very first configure event that has a real width, load images.
         if not self._initial_load_done and event.width > 1:
