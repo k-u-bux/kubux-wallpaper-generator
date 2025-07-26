@@ -1,6 +1,3 @@
-# kubux wallpaper generator
-# =========================
-
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -17,8 +14,8 @@ import requests
 import base64
 import secrets
 from datetime import datetime
-import hashlib  # <-- NEW IMPORT for hashing image paths for unique filenames
-import shutil   # <-- already there, useful for copy operations
+import hashlib
+import shutil
 
 # Load environment variables
 load_dotenv()
@@ -51,10 +48,10 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
         mtime = os.path.getmtime(img_path)
     except FileNotFoundError:
         print(f"Error: Original image file not found for thumbnail generation: {img_path}")
-        return None # Cannot generate thumbnail if source file doesn't exist
+        return None
     except Exception as e:
         print(f"Warning: Could not get modification time for {img_path}: {e}. Using a default value.")
-        mtime = 0 # Fallback: if mtime cannot be retrieved, treat as always new.
+        mtime = 0
 
     in_memory_cache_key = f"{img_path}_{thumbnail_max_size}_{mtime}"
 
@@ -63,12 +60,12 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
 
     thumbnail_size_str = str(thumbnail_max_size)
     thumbnail_cache_subdir = os.path.join(THUMBNAIL_CACHE_ROOT, thumbnail_size_str)
-    os.makedirs(thumbnail_cache_subdir, exist_ok=True) # Ensure subdir for this size exists
+    os.makedirs(thumbnail_cache_subdir, exist_ok=True)
 
     filename_hash = hashlib.sha256(in_memory_cache_key.encode('utf-8')).hexdigest()
     cached_thumbnail_path = os.path.join(thumbnail_cache_subdir, f"{filename_hash}.png")
 
-    pil_image_thumbnail = None # Will hold the PIL Image object (thumbnail size)
+    pil_image_thumbnail = None
 
     try:
         if os.path.exists(cached_thumbnail_path):
@@ -76,7 +73,7 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
         else:
             full_img = Image.open(img_path)
             full_img.thumbnail((thumbnail_max_size, thumbnail_max_size))
-            pil_image_thumbnail = full_img # Now, pil_image_thumbnail holds the resized PIL image
+            pil_image_thumbnail = full_img
             pil_image_thumbnail.save(cached_thumbnail_path) 
 
         GLOBAL_PIL_THUMBNAIL_CACHE[in_memory_cache_key] = pil_image_thumbnail
@@ -84,16 +81,14 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
         return pil_image_thumbnail
 
     except Exception as e:
-        # Handle any errors during image loading, processing, or saving
         print(f"Error loading/creating thumbnail for {img_path}: {e}")
-        # If there was an error, ensure any potentially corrupted cached file is removed
         if os.path.exists(cached_thumbnail_path):
             try:
                 os.remove(cached_thumbnail_path)
                 print(f"Removed corrupted thumbnail: {cached_thumbnail_path}")
             except Exception as ex:
                 print(f"Could not remove corrupted thumbnail file: {ex}")
-        return None # Return None if thumbnail creation fails
+        return None
     
 
 
@@ -107,7 +102,7 @@ def set_wallpaper(image_path):
             SPI_SETDESKWALLPAPER = 20
             ctypes.windll.user32.SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, abs_path, 3)
             return True
-        elif system == "Darwin": # macOS
+        elif system == "Darwin":
             script = f'tell application "Finder" to set desktop picture to POSIX file "{abs_path}"'
             os.system(f"osascript -e '{script}'")
             return True
@@ -187,42 +182,36 @@ class ImagePickerDialog(tk.Toplevel):
     def __init__(self, master, thumbnail_max_size, image_dir_path):
         super().__init__(master)
         self.title("Add Images to Collection")
-        self.transient(master) # Make this dialog on top of the main window
-        self.grab_set() # Make it modal
+        self.transient(master)
+        self.grab_set()
 
-        self.master_app = master # Reference to the main app instance
+        self.master_app = master
         self.thumbnail_max_size = thumbnail_max_size
-        self.image_dir_path = image_dir_path # This is IMAGE_DIR from main app
+        self.image_dir_path = image_dir_path
 
-        # --- NEW: Load last browsed directory or default ---
-        self.current_directory = "" # Initialize to ensure it exists
+        self.current_directory = ""
         if hasattr(self.master_app, 'app_settings'):
             saved_dir = self.master_app.app_settings.get('image_picker_last_directory')
             if saved_dir and os.path.isdir(saved_dir):
                 self.current_directory = saved_dir
             else:
-                # Default logic if no saved dir or it's invalid
                 self.current_directory = os.path.expanduser(os.path.join('~', 'Pictures'))
                 if not os.path.isdir(self.current_directory):
                     self.current_directory = os.path.expanduser('~')
         else:
-            # Fallback if master_app doesn't even have app_settings (unlikely if app_settings is loaded properly)
             self.current_directory = os.path.expanduser(os.path.join('~', 'Pictures'))
             if not os.path.isdir(self.current_directory):
                 self.current_directory = os.path.expanduser('~')
-        # ---------------------------------------------------
 
-        self.selected_files = {} # Store {original_path: True} for selected files
-        self.image_widgets = {} # To store references to thumbnail buttons/labels for selection highlighting
+        self.selected_files = {}
+        self.image_widgets = {}
 
         self.create_widgets()
-        self._load_geometry() # Load geometry before initial content fill
-        self._browse_directory(self.current_directory) # Use the loaded/default directory
+        self._load_geometry()
+        self._browse_directory(self.current_directory)
 
-        # Bind protocol for window close to save geometry and destroy
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
         
-        # Set focus to the dialog after a short delay to enable keyboard navigation
         self.after(100, self.focus_set)
 
     def create_widgets(self):
@@ -243,35 +232,27 @@ class ImagePickerDialog(tk.Toplevel):
         self.gallery_canvas.bind("<Configure>", self._on_canvas_configure)
         self.gallery_grid_frame.bind("<Configure>", lambda e: self.gallery_canvas.configure(scrollregion=self.gallery_canvas.bbox("all")))
         
-        # Add Mousewheel scrolling for the canvas
         self._bind_mousewheel(self.gallery_canvas)
         self._bind_mousewheel(self.gallery_grid_frame)
 
-        # Add Keyboard bindings for scrolling (bound to the Toplevel window)
         self.bind("<Up>", lambda e: self.gallery_canvas.yview_scroll(-1, "units"))
         self.bind("<Down>", lambda e: self.gallery_canvas.yview_scroll(1, "units"))
-        self.bind("<Prior>", lambda e: self.gallery_canvas.yview_scroll(-1, "pages")) # Page Up
-        self.bind("<Next>", lambda e: self.gallery_canvas.yview_scroll(1, "pages")) # Page Down
+        self.bind("<Prior>", lambda e: self.gallery_canvas.yview_scroll(-1, "pages"))
+        self.bind("<Next>", lambda e: self.gallery_canvas.yview_scroll(1, "pages"))
 
         # Control Frame (at the bottom)
         control_frame = ttk.Frame(self)
         control_frame.pack(fill="x", padx=5, pady=5)
 
-        # Left side: Up button
-        ttk.Button(control_frame, text="Up", command=self._go_up_directory).pack(side="left", padx=2)
-
-        # Center: Current directory info
-        current_dir_info_frame = ttk.Frame(control_frame)
-        current_dir_info_frame.pack(side="left", fill="x", expand=True, padx=5)
-        self.current_dir_label = ttk.Label(current_dir_info_frame, text="", anchor="center") 
-        self.current_dir_label.pack(expand=True)
+        # Breadcrumb Frame
+        self.breadcrumb_frame = ttk.Frame(control_frame)
+        self.breadcrumb_frame.pack(side="left", fill="x", expand=True, padx=5)
 
         # Right side: Add and Cancel buttons (packed in reverse order for correct visual sequence)
         ttk.Button(control_frame, text="Cancel", command=self._on_closing).pack(side="right")
         ttk.Button(control_frame, text="Add Selected", command=self._on_add_selected).pack(side="right", padx=2)
 
     def _center_toplevel_window(self, toplevel_window):
-        # Reuse logic from WallpaperApp's _center_toplevel_window
         toplevel_window.update_idletasks()
         master_x = self.master_app.winfo_x()
         master_y = self.master_app.winfo_y()
@@ -294,12 +275,10 @@ class ImagePickerDialog(tk.Toplevel):
     def _save_geometry(self):
         """Saves the current dialog geometry AND current directory to app settings."""
         if hasattr(self.master_app, 'app_settings'):
-            self.update_idletasks() # Ensure geometry is up-to-date
+            self.update_idletasks()
             geometry = self.geometry()
             self.master_app.app_settings['image_picker_dialog_geometry'] = geometry
-            # --- NEW: Save current directory ---
             self.master_app.app_settings['image_picker_last_directory'] = self.current_directory
-            # -----------------------------------
             self.master_app.save_app_settings()
 
     def _load_geometry(self):
@@ -320,14 +299,9 @@ class ImagePickerDialog(tk.Toplevel):
                     print(f"Error loading image picker dialog geometry: {e}. Centering window.")
                     self._center_toplevel_window(self)
             else:
-                self._center_toplevel_window(self) # No saved geometry, center initially
+                self._center_toplevel_window(self)
         else:
-            self._center_toplevel_window(self) # No app_settings found, center initially
-
-    def _go_up_directory(self):
-        parent_dir = os.path.dirname(self.current_directory)
-        if parent_dir and parent_dir != self.current_directory: # Prevent going above root
-            self._browse_directory(parent_dir)
+            self._center_toplevel_window(self)
 
     def _browse_directory(self, path):
         if not os.path.isdir(path):
@@ -335,50 +309,75 @@ class ImagePickerDialog(tk.Toplevel):
             return
 
         self.current_directory = path
-        self.current_dir_label.config(text=f"Current Directory: {path}")
+        self._update_breadcrumbs() # Call new method to update breadcrumbs
         self._refresh_thumbnail_grid()
+
+    def _update_breadcrumbs(self):
+        for widget in self.breadcrumb_frame.winfo_children():
+            widget.destroy()
+
+        path_parts = []
+        current_path = self.current_directory
+        while current_path and current_path != os.path.dirname(current_path):
+            path_parts.insert(0, os.path.basename(current_path) or current_path) # Handle root path basename being empty
+            current_path = os.path.dirname(current_path)
+        if not path_parts: # For very root paths like '/' or 'C:\'
+            path_parts = [self.current_directory] if self.current_directory else ['/']
+
+        accumulated_path = ""
+        for i, part in enumerate(path_parts):
+            if i == 0:
+                # For Windows, handle drive letters correctly
+                if platform.system() == "Windows" and self.current_directory and self.current_directory[1:3] == ':\\':
+                    accumulated_path = self.current_directory[:3]
+                else:
+                    accumulated_path = os.path.sep if part == '' else os.path.join(os.path.sep, part) # Handle root '/'
+            else:
+                accumulated_path = os.path.join(accumulated_path, part)
+            
+            # Use os.path.normpath to clean up redundant separators if any
+            display_path = os.path.normpath(accumulated_path)
+            # Special handling for root paths to display correctly, e.g. "C:\" or "/"
+            if platform.system() == "Windows" and len(display_path) == 2 and display_path[1] == ':':
+                 display_path += os.path.sep # Add backslash for drive letters C: -> C:\
+            elif display_path == '': # For Linux root /
+                display_path = os.path.sep
+
+            btn_text = part if part != '' else os.path.sep # Display '/' for root part
+            
+            if i < len(path_parts) - 1: # Not the last segment
+                btn = ttk.Button(self.breadcrumb_frame, text=btn_text, command=lambda p=display_path: self._browse_directory(p))
+                btn.pack(side="left")
+                ttk.Label(self.breadcrumb_frame, text=" > ").pack(side="left")
+            else: # Last segment (current directory)
+                current_dir_btn = ttk.Menubutton(self.breadcrumb_frame, 
+                                                 text=btn_text, 
+                                                 direction="above" )
+                current_dir_btn.pack(side="left")
+                current_dir_menu = tk.Menu(current_dir_btn, tearoff=0, font=self.master_app.app_font)
+                current_dir_btn.config(menu=current_dir_menu)
+
+                subdirs = sorted([d for d in os.listdir(self.current_directory) if os.path.isdir(os.path.join(self.current_directory, d))])
+                if subdirs:
+                    for subdir in subdirs:
+                        subdir_path = os.path.join(self.current_directory, subdir)
+                        current_dir_menu.add_command(label=subdir, command=lambda p=subdir_path: self._browse_directory(p))
+                else:
+                    current_dir_menu.add_command(label="(No subdirectories)", state="disabled")
+
 
     def _refresh_thumbnail_grid(self):
         for widget in self.gallery_grid_frame.winfo_children():
             widget.destroy()
-        self.image_widgets.clear() # Clear references to old widgets
+        self.image_widgets.clear()
 
         files_in_dir = [os.path.join(self.current_directory, f) for f in os.listdir(self.current_directory)]
         image_files = sorted([f for f in files_in_dir if f.lower().endswith(('.png', '.jpg', '.jpeg')) and os.path.isfile(f)])
-        directories = sorted([f for f in files_in_dir if os.path.isdir(f)])
-
         thumbnail_cols = self._calculate_columns()
         if thumbnail_cols == 0: thumbnail_cols = 1 # Ensure at least one column
 
         # Add directory entries first
         current_grid_idx = 0
-        for dir_path in directories:
-            row, col = divmod(current_grid_idx, thumbnail_cols)
-            dir_name = os.path.basename(dir_path)
-            
-            folder_frame = ttk.Frame(self.gallery_grid_frame, cursor="hand2", relief="groove", borderwidth=1)
-            folder_frame.grid(row=row, column=col, padx=2, pady=2, sticky="nsew")
-            
-            folder_icon_label = ttk.Label(folder_frame, text="📁", font=("TkDefaultFont", int(self.master_app.base_font_size * self.master_app.current_font_scale * 1.5)))
-            folder_icon_label.pack(pady=(5,0))
-            
-            folder_name_label = ttk.Label(folder_frame, text=dir_name, wraplength=self.thumbnail_max_size - 10, anchor="center")
-            folder_name_label.pack(fill="x", padx=2, pady=(0,5))
-            
-            # Bind click events
-            folder_frame.bind("<Button-1>", lambda e, p=dir_path: self._browse_directory(p))
-            folder_icon_label.bind("<Button-1>", lambda e, p=dir_path: self._browse_directory(p))
-            folder_name_label.bind("<Button-1>", lambda e, p=dir_path: self._browse_directory(p))
-
-            # Bind mousewheel to folder elements
-            self._bind_mousewheel(folder_frame)
-            self._bind_mousewheel(folder_icon_label)
-            self._bind_mousewheel(folder_name_label)
-
-            self.gallery_grid_frame.grid_columnconfigure(col, weight=1)
-            current_grid_idx += 1
-
-        # Then add image thumbnails
         for img_path in image_files:
             row, col = divmod(current_grid_idx, thumbnail_cols)
             
@@ -388,14 +387,12 @@ class ImagePickerDialog(tk.Toplevel):
                                 command=lambda p=img_path, current_btn=None: self._toggle_selection(p, self.image_widgets[p] if p in self.image_widgets else current_btn),
                                 cursor="hand2", relief="flat", borderwidth=0, 
                                 highlightthickness=3, highlightbackground="lightgrey")
-                btn.image = thumbnail # Keep reference to prevent garbage collection
+                btn.image = thumbnail
                 btn.grid(row=row, column=col, padx=2, pady=2, sticky="nsew")
-                self.image_widgets[img_path] = btn # Store button for highlighting
+                self.image_widgets[img_path] = btn
 
-                # Bind mousewheel to thumbnail button
                 self._bind_mousewheel(btn)
 
-                # Apply initial selection highlight if already selected
                 if img_path in self.selected_files:
                     self._highlight_selection(btn, True)
             self.gallery_grid_frame.grid_columnconfigure(col, weight=1)
@@ -433,9 +430,9 @@ class ImagePickerDialog(tk.Toplevel):
 
     def _on_add_selected(self):
         """Callback for 'Add Selected' button, saves geometry and adds files."""
-        self._save_geometry() # Save geometry before closing
+        self._save_geometry()
         self.master_app.add_multiple_images_as_symlinks(list(self.selected_files.keys()))
-        self.destroy() # Close the dialog
+        self.destroy()
 
     def get_selected_paths(self):
         """Returns the list of currently selected image file paths."""
@@ -453,18 +450,17 @@ class ImagePickerDialog(tk.Toplevel):
         """Calculates how many columns of thumbnails can fit in the canvas."""
         available_width = self.gallery_canvas.winfo_width()
         if available_width <= 1: return 1
-        thumb_width_with_padding = self.thumbnail_max_size + 4 # 2px padx on each side
-        return max(1, (available_width - 20) // thumb_width_with_padding) # 20 for scrollbar/margin
+        thumb_width_with_padding = self.thumbnail_max_size + 4
+        return max(1, (available_width - 20) // thumb_width_with_padding)
 
     def _bind_mousewheel(self, widget):
         """Binds mousewheel events for scrolling within the ImagePickerDialog's canvas."""
-        # Always use the local scrolling logic for the dialog's canvas
         def on_mousewheel_local(event):
             if platform.system() == "Windows": 
                 self.gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            elif event.num == 4: # Linux/macOS scroll up (Button-4 is scroll up)
+            elif event.num == 4:
                 self.gallery_canvas.yview_scroll(-1, "units")
-            elif event.num == 5: # Linux/macOS scroll down (Button-5 is scroll down)
+            elif event.num == 5:
                 self.gallery_canvas.yview_scroll(1, "units")
         
         widget.bind("<MouseWheel>", on_mousewheel_local, add="+")
@@ -490,7 +486,7 @@ class WallpaperApp(tk.Tk):
         self._gallery_scale_update_after_id = None
         self._gallery_resize_job = None
         self._ui_scale_job = None
-        self._initial_load_done = False # --- FIX: Flag for initial load
+        self._initial_load_done = False
 
         self.load_prompt_history()
         self.load_app_settings()
@@ -504,9 +500,6 @@ class WallpaperApp(tk.Tk):
         self.update_idletasks()
         self.set_initial_pane_positions()
         
-        # --- FIX: Initial load is now handled by the <Configure> event ---
-        # self.after(1, self.load_images) # REMOVED
-
         self.gallery_canvas.bind("<Configure>", self._gallery_on_canvas_configure)
         self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -530,14 +523,13 @@ class WallpaperApp(tk.Tk):
         try:
             if os.path.exists(APP_SETTINGS_FILE):
                 with open(APP_SETTINGS_FILE, 'r') as f:
-                    self.app_settings = json.load(f) # <-- Crucial change: Assign to self.app_settings
+                    self.app_settings = json.load(f)
             else:
-                self.app_settings = {} # Initialize empty if file not found
+                self.app_settings = {}
         except (json.JSONDecodeError, Exception) as e:
             print(f"Error loading app settings, initializing defaults: {e}")
-            self.app_settings = {} # Initialize empty if loading fails (e.g., corrupt JSON)
+            self.app_settings = {}
         
-        # Now retrieve values from the self.app_settings dictionary, providing defaults
         self.current_font_scale = self.app_settings.get("ui_scale", 1.0)
         self.initial_geometry = self.app_settings.get("window_geometry", "1200x800")
         self.current_thumbnail_scale = self.app_settings.get("thumbnail_scale", 1.0)
@@ -547,25 +539,17 @@ class WallpaperApp(tk.Tk):
     def save_app_settings(self):
         """Saves application settings to a JSON file, preserving existing keys."""
         try:
-            # Ensure self.app_settings exists. It should be initialized by load_app_settings
-            # but this is a safeguard.
             if not hasattr(self, 'app_settings'):
                 self.app_settings = {}
 
-            # Update specific keys in the existing self.app_settings dictionary
             self.app_settings["ui_scale"] = self.current_font_scale
             self.app_settings["window_geometry"] = self.geometry()
             self.app_settings["thumbnail_scale"] = self.current_thumbnail_scale
             
-            # Save paned window positions only if they exist and are valid
             if hasattr(self, 'paned_window') and self.paned_window.winfo_exists():
                 self.app_settings["horizontal_paned_position"] = self.paned_window.sashpos(0)
             if hasattr(self, 'vertical_paned') and self.vertical_paned.winfo_exists():
                 self.app_settings["vertical_paned_position"] = self.vertical_paned.sashpos(0)
-
-            # The 'image_picker_dialog_geometry' (and any other settings added by other components)
-            # will already be in self.app_settings if they were loaded or added,
-            # so they will be preserved by this update and subsequent dump.
 
             with open(APP_SETTINGS_FILE, 'w') as f:
                 json.dump(self.app_settings, f, indent=4)
@@ -764,12 +748,10 @@ class WallpaperApp(tk.Tk):
         self._gallery_refresh_display()
 
     def _gallery_on_canvas_configure(self, event):
-        # On the very first configure event that has a real width, load images.
         if not self._initial_load_done and event.width > 1:
             self.load_images()
             self._initial_load_done = True
             
-        # Continue with the existing debounced resize logic for subsequent resizes.
         if self._gallery_resize_job: 
             self.after_cancel(self._gallery_resize_job)
         self._gallery_resize_job = self.after(400, lambda e=event: self._do_gallery_resize_refresh(e))
@@ -909,22 +891,17 @@ class WallpaperApp(tk.Tk):
            """
            if not original_paths:
                print("DEBUG: No files selected for symlinking. Returning.")
-               return # No files selected
+               return
     
-           # print(f"DEBUG: Starting symlink process for {len(original_paths)} files.")
            for i, file_path in enumerate(original_paths):
-               # print(f"\nDEBUG: --- Processing file {i+1}/{len(original_paths)}: {file_path} ---")
                try:
-                   # Ensure the original file exists before trying to symlink
                    if not os.path.exists(file_path):
                        print(f"WARNING: Original file not found, skipping: {file_path}")
                        continue
     
-                   file_name = unique_name(file_path, "manual") # Reuse unique_name for consistent naming
+                   file_name = unique_name(file_path, "manual")
                    dest = os.path.join(IMAGE_DIR, file_name)
-                   # print(f"DEBUG: Proposed symlink destination: {dest}")
     
-                   # Check if a symlink to this specific file already exists
                    is_already_linked = False
                    for existing_linked_file in os.listdir(IMAGE_DIR):
                        full_existing_link_path = os.path.join(IMAGE_DIR, existing_linked_file)
@@ -934,29 +911,18 @@ class WallpaperApp(tk.Tk):
                            break
                    
                    if is_already_linked:
-                       continue # Skip to next file if duplicate found
+                       continue
     
-                   # If we reach here, the file is not a duplicate, attempt to create symlink
-                   # print(f"DEBUG: Attempting to create symlink: '{file_path}' -> '{dest}'")
                    os.symlink(file_path, dest)
-                   # print(f"SUCCESS: Symlinked {file_path} to {dest}")
     
                except Exception as e:
-                   # Catch any error during symlink creation
                    print(f"ERROR: Failed to add image '{os.path.basename(file_path)}' due to symlink error: {type(e).__name__}: {e}")
-                   # The loop will continue to try adding other selected files.
            
-           # print("\nDEBUG: All symlink operations attempted. Reloading main gallery images.")
-           self.load_images() # Reload main gallery after all additions
+           self.load_images()
 
     def manually_add_images(self):
-        # Open the new custom dialog instead of askopenfilename
         dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, IMAGE_DIR)
-        self.wait_window(dialog) # Wait for the dialog to close
-
-        # The dialog's _on_add_selected method will call add_multiple_images_as_symlinks
-        # So, nothing further is needed here after dialog closes,
-        # as load_images will be triggered by that helper method.
+        self.wait_window(dialog)
 
     def delete_selected_image(self):
         path_to_delete = self.gallery_current_selection
