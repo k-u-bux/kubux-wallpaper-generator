@@ -47,62 +47,53 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 GLOBAL_PIL_THUMBNAIL_CACHE = {}
 
 def get_or_make_thumbnail(img_path, thumbnail_max_size):
-            # 1. Generate a unique key for the IN-MEMORY cache (session-based)
-            # This key combines the original image path and the desired thumbnail size.
-            # This cache will store PIL.Image.Image objects.
-            in_memory_cache_key = f"{img_path}_{thumbnail_max_size}"
+    try:
+        mtime = os.path.getmtime(img_path)
+    except FileNotFoundError:
+        print(f"Error: Original image file not found for thumbnail generation: {img_path}")
+        return None # Cannot generate thumbnail if source file doesn't exist
+    except Exception as e:
+        print(f"Warning: Could not get modification time for {img_path}: {e}. Using a default value.")
+        mtime = 0 # Fallback: if mtime cannot be retrieved, treat as always new.
 
-            # 2. Check the in-memory cache first (fastest lookup for repeated access in session)
-            if in_memory_cache_key in GLOBAL_PIL_THUMBNAIL_CACHE:
-                return GLOBAL_PIL_THUMBNAIL_CACHE.get(in_memory_cache_key)
+    in_memory_cache_key = f"{img_path}_{thumbnail_max_size}_{mtime}"
 
-            # 3. Define the ON-DISK cache path structure for this specific thumbnail size
-            thumbnail_size_str = str(thumbnail_max_size)
-            thumbnail_cache_subdir = os.path.join(THUMBNAIL_CACHE_ROOT, thumbnail_size_str)
-            os.makedirs(thumbnail_cache_subdir, exist_ok=True) # Ensure subdir for this size exists
+    if in_memory_cache_key in GLOBAL_PIL_THUMBNAIL_CACHE:
+        return GLOBAL_PIL_THUMBNAIL_CACHE.get(in_memory_cache_key)
 
-            # 4. Generate a stable filename for the cached thumbnail on disk.
-            #    Using a SHA256 hash of the original image's full path ensures:
-            #    - A unique filename for each original image within a size directory.
-            #    - No issues with special characters or long paths in filenames.
-            filename_hash = hashlib.sha256(img_path.encode('utf-8')).hexdigest()
-            cached_thumbnail_path = os.path.join(thumbnail_cache_subdir, f"{filename_hash}.png")
+    thumbnail_size_str = str(thumbnail_max_size)
+    thumbnail_cache_subdir = os.path.join(THUMBNAIL_CACHE_ROOT, thumbnail_size_str)
+    os.makedirs(thumbnail_cache_subdir, exist_ok=True) # Ensure subdir for this size exists
 
-            pil_image_thumbnail = None # Will hold the PIL Image object (thumbnail size)
+    filename_hash = hashlib.sha256(in_memory_cache_key.encode('utf-8')).hexdigest()
+    cached_thumbnail_path = os.path.join(thumbnail_cache_subdir, f"{filename_hash}.png")
 
+    pil_image_thumbnail = None # Will hold the PIL Image object (thumbnail size)
+
+    try:
+        if os.path.exists(cached_thumbnail_path):
+            pil_image_thumbnail = Image.open(cached_thumbnail_path)
+        else:
+            full_img = Image.open(img_path)
+            full_img.thumbnail((thumbnail_max_size, thumbnail_max_size))
+            pil_image_thumbnail = full_img # Now, pil_image_thumbnail holds the resized PIL image
+            pil_image_thumbnail.save(cached_thumbnail_path) 
+
+        GLOBAL_PIL_THUMBNAIL_CACHE[in_memory_cache_key] = pil_image_thumbnail
+        
+        return pil_image_thumbnail
+
+    except Exception as e:
+        # Handle any errors during image loading, processing, or saving
+        print(f"Error loading/creating thumbnail for {img_path}: {e}")
+        # If there was an error, ensure any potentially corrupted cached file is removed
+        if os.path.exists(cached_thumbnail_path):
             try:
-                if os.path.exists(cached_thumbnail_path):
-                    # 5. If the thumbnail already exists on disk, load it directly
-                    #    It's already a thumbnail, so no need to resize again.
-                    pil_image_thumbnail = Image.open(cached_thumbnail_path)
-                else:
-                    # 6. If the thumbnail does NOT exist on disk:
-                    #    a. Load the original full-size image
-                    full_img = Image.open(img_path)
-                    
-                    #    b. Rescale it to thumbnail size (in-place)
-                    full_img.thumbnail((thumbnail_max_size, thumbnail_max_size))
-                    pil_image_thumbnail = full_img # Now, pil_image_thumbnail holds the resized PIL image
-
-                    #    c. Save the newly generated thumbnail to disk for future use
-                    pil_image_thumbnail.save(cached_thumbnail_path) 
-
-                # 7. Cache the thumbnails in the in-memory cache for this session's quick access
-                GLOBAL_PIL_THUMBNAIL_CACHE[in_memory_cache_key] = pil_image_thumbnail
-                
-                return pil_image_thumbnail
-
-            except Exception as e:
-                # Handle any errors during image loading, processing, or saving
-                print(f"Error loading/creating thumbnail for {img_path}: {e}")
-                # If there was an error, ensure any potentially corrupted cached file is removed
-                if os.path.exists(cached_thumbnail_path):
-                    try:
-                        os.remove(cached_thumbnail_path)
-                        print(f"Removed corrupted thumbnail: {cached_thumbnail_path}")
-                    except Exception as ex:
-                        print(f"Could not remove corrupted thumbnail file: {ex}")
-                return None # Return None if thumbnail creation fails
+                os.remove(cached_thumbnail_path)
+                print(f"Removed corrupted thumbnail: {cached_thumbnail_path}")
+            except Exception as ex:
+                print(f"Could not remove corrupted thumbnail file: {ex}")
+        return None # Return None if thumbnail creation fails
     
 
 
