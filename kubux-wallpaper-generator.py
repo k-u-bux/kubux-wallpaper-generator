@@ -44,7 +44,7 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 # --- Caching thumbnails ---
 GLOBAL_PIL_THUMBNAIL_CACHE = {}
 
-def get_or_make_thumbnail(img_path, thumbnail_max_size):
+def uniq_file_id(img_path, width):
     try:
         mtime = os.path.getmtime(img_path)
     except FileNotFoundError:
@@ -53,18 +53,20 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
     except Exception as e:
         print(f"Warning: Could not get modification time for {img_path}: {e}. Using a default value.")
         mtime = 0
+    key = f"{img_path}_{width}_{mtime}"
+    return hashlib.sha256(key.encode('utf-8')).hexdigest()
 
-    in_memory_cache_key = f"{img_path}_{thumbnail_max_size}_{mtime}"
+def get_or_make_thumbnail(img_path, thumbnail_max_size):
+    cache_key = uniq_file_id(img_path, thumbnail_max_size)
 
-    if in_memory_cache_key in GLOBAL_PIL_THUMBNAIL_CACHE:
-        return GLOBAL_PIL_THUMBNAIL_CACHE.get(in_memory_cache_key)
+    if cache_key in GLOBAL_PIL_THUMBNAIL_CACHE:
+        return GLOBAL_PIL_THUMBNAIL_CACHE.get(cache_key)
 
     thumbnail_size_str = str(thumbnail_max_size)
     thumbnail_cache_subdir = os.path.join(THUMBNAIL_CACHE_ROOT, thumbnail_size_str)
     os.makedirs(thumbnail_cache_subdir, exist_ok=True)
 
-    filename_hash = hashlib.sha256(in_memory_cache_key.encode('utf-8')).hexdigest()
-    cached_thumbnail_path = os.path.join(thumbnail_cache_subdir, f"{filename_hash}.png")
+    cached_thumbnail_path = os.path.join(thumbnail_cache_subdir, f"{cache_key}.png")
 
     pil_image_thumbnail = None
 
@@ -77,7 +79,7 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
             pil_image_thumbnail = full_img
             pil_image_thumbnail.save(cached_thumbnail_path) 
 
-        GLOBAL_PIL_THUMBNAIL_CACHE[in_memory_cache_key] = pil_image_thumbnail
+        GLOBAL_PIL_THUMBNAIL_CACHE[cache_key] = pil_image_thumbnail
         
         return pil_image_thumbnail
 
@@ -198,7 +200,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         self._directory_path = directory_path
         self._item_fixed_width = item_fixed_width
         self._button_config_callback = button_config_callback 
-        self._known_widgets = {} # This is a dict: (img_path, thumbnail_size) -> (tk.Button, ImageTk.PhotoImage)
+        self._known_widgets = {} # This is a dict: hash_str -> (tk.Button, ImageTk.PhotoImage)
         self._active_widgets = {} # This is a dict: img_path -> (tk.Button, ImageTk.PhotoImage)
         self._last_known_width = -1 
 
@@ -225,7 +227,8 @@ class DirectoryThumbnailGrid(tk.Frame):
         # Create/reuse and configure buttons for the new set of image paths
         for img_path in new_image_paths_from_disk:
             # Try to get previous button and its associated image
-            target_btn, tk_image = self._known_widgets.get((img_path,self._item_fixed_width), (None, None)) 
+            cache_key = uniq_file_id(img_path, self._item_fixed_width)
+            target_btn, tk_image = self._known_widgets.get(cache_key, (None, None)) 
 
             if target_btn is None:
                 target_btn = tk.Button(self)
@@ -234,7 +237,7 @@ class DirectoryThumbnailGrid(tk.Frame):
             tk_image_ref = self._configure_thumbnail_button_internal(target_btn, img_path, tk_image)
             
             # Store the button AND the PhotoImage together as a tuple
-            self._known_widgets[(img_path, self._item_fixed_width)] = (target_btn, tk_image_ref)
+            self._known_widgets[cache_key] = (target_btn, tk_image_ref)
             self._active_widgets[img_path] = (target_btn, tk_image_ref)
             
         self._perform_grid_layout() 
