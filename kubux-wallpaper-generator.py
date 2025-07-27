@@ -213,7 +213,8 @@ class BackgroundWorker:
             to_do_list = list_relevant_files( old_directory )
             for path_name in to_do_list:
                 if not self.keep_running:
-                    return                
+                    return
+                self.barrier()
                 if self.keep_running and ( old_size == self.current_size ) and ( old_directory == self.current_dir ):
                     # print(f"background: {path_name}")
                     get_or_make_thumbnail(path_name, old_size)
@@ -228,6 +229,16 @@ class BackgroundWorker:
         self.current_size = 0
         self.current_dir = ""
         self.worker = threading.Thread( target=self.background )
+        self.block = threading.Event()
+
+    def pause(self):
+        self.block.clear()
+
+    def resume(self):
+        self.block.set()
+
+    def barrier(self):
+        self.block.wait()
 
     def run(self, dir_path, size):
         self.current_size = size
@@ -236,6 +247,7 @@ class BackgroundWorker:
 
     def stop(self):
         self.keep_running = False
+        self.resume()
         
 background_worker = BackgroundWorker()
 
@@ -878,6 +890,8 @@ class WallpaperApp(tk.Tk):
         users_images = self.image_dir()
         self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, users_images)
         background_worker.run(users_images, self.gallery_thumbnail_max_size)
+        background_worker.pause()
+        self.after(3000, background_worker.resume)
  
     def _gallery_configure_button(self, btn, img_path, tk_thumbnail):
         """Callback to configure gallery buttons."""
@@ -945,7 +959,9 @@ class WallpaperApp(tk.Tk):
     
     # --- Gallery Methods ---
     def load_images(self):
+        background_worker.pause()
         self.gallery_grid.regrid()
+        background_worker.resume()
 
     def _gallery_update_thumbnail_scale_callback(self, value):
         if self._gallery_scale_update_after_id: self.after_cancel(self._gallery_scale_update_after_id)
@@ -956,6 +972,8 @@ class WallpaperApp(tk.Tk):
         self.gallery_thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * scale)
         self.gallery_grid.set_size_and_path(self.gallery_thumbnail_max_size)
         background_worker.current_size = self.gallery_thumbnail_max_size
+        background_worker.pause()
+        self.after(3000, background_worker.resume)
 
     def _gallery_on_canvas_configure(self, event):
         if not self._initial_load_done and event.width > 1:
