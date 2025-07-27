@@ -279,7 +279,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         
         if target_btn is None:
             target_btn = tk.Button(self)
-            tk_image_ref = self._configure_thumbnail_button_internal(target_btn, img_path, tk_image)
+            tk_image_ref = self._configure_thumbnail_button_internal(target_btn, img_path)
             self._known_widgets[cache_key] = (target_btn, tk_image_ref)
         else:
             assert not tk_image is None
@@ -377,9 +377,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         
         self.update_idletasks()
         
-    def _configure_thumbnail_button_internal(self, btn, img_path, current_tk_image=None):
-        setattr(btn, '_associated_image_path', img_path) 
-        
+    def _configure_thumbnail_button_internal(self, btn, img_path):
         thumbnail_pil = get_or_make_thumbnail(img_path, self._item_fixed_width)
         tk_thumbnail = None
         if thumbnail_pil:
@@ -388,13 +386,10 @@ class DirectoryThumbnailGrid(tk.Frame):
             except Exception as e:
                 print(f"Error converting PIL image to ImageTk.PhotoImage for {img_path}: {e}")
         
-        # Assign the image to the button if it's new or changed
-        if tk_thumbnail is not None and (current_tk_image is None or id(tk_thumbnail) != id(current_tk_image)):
+        if tk_thumbnail is not None:
             btn.config(image=tk_thumbnail)
-            btn.image = tk_thumbnail
-        elif tk_thumbnail is None and btn.image is not None: 
+        elif tk_thumbnail is None: 
             btn.config(image=None)
-            btn.image = None
             
         if self._button_config_callback:
             self._button_config_callback(btn, img_path, tk_thumbnail)
@@ -870,6 +865,8 @@ class WallpaperApp(tk.Tk):
         ttk.Button(action_btn_frame, text="Delete", command=self.delete_selected_image).pack(side="left", padx=24)
         ttk.Button(action_btn_frame, text="Add", command=self.manually_add_images).pack(side="left", padx=24)
         ttk.Button(action_btn_frame, text="Set Wallpaper", command=self.set_current_as_wallpaper).pack(side="left", padx=(24,2))
+
+        self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, IMAGE_DIR)
  
     def _gallery_configure_button(self, btn, img_path, tk_thumbnail):
         """Callback to configure gallery buttons."""
