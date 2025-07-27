@@ -1,4 +1,6 @@
 import os
+import time
+import queue
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk
@@ -204,17 +206,25 @@ def list_relevant_files(dir_path):
         file_list.extend( list_image_files( subdir ) )
     return file_list;
 
+path_name_queue = queue.Queue()
+
 def background(source_of_truth):
     while True:
         current_directory = source_of_truth.current_directory
+        current_width = source_of_truth.thumbnail_max_width
         to_do_list = list_relevant_files( current_directory )
-        ... do stuff ...
+        for path_name in to_to_list:
+            if source_of_truth.stop_caching:
+                return
+            get_or_make_thumbnail(path_name, current_width)
+            path_name_queue.put(path_name)
         old_directory = current_directory
         current_directory = source_of_truth.current_directory
         while old_directory == current_directory:
+            if source_of_truth.stop_caching:
+                return
             time.sleep( 3 )
             current_directory = source_of_truth.current_directory 
-
 
 
 def list_image_files(directory_path):
@@ -252,7 +262,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         self._item_fixed_width = item_fixed_width
         self._button_config_callback = button_config_callback 
         self._known_widgets = {} # This is a dict: hash_str -> (tk.Button, ImageTk.PhotoImage)
-        self._active_widgets = {} # This is a dict: img_path -> (tk.Button, ImageTk.PhotoImage)
+        self._active_widgets = {} # This is a dict: img_path -> tk.Button
         self._last_known_width = -1 
 
         self.bind("<Configure>", self._on_resize)
@@ -262,7 +272,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         self._item_fixed_width = width;
         self.regrid();
 
-    def get_button_and_ref(self, img_path, width):
+    def get_button(self, img_path, width):
         cache_key = uniq_file_id(img_path, width)
         target_btn, tk_image = self._known_widgets.get(cache_key, (None, None)) 
         
@@ -273,7 +283,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         else:
             assert not tk_image is None
             
-        return (target_btn, tk_image_ref)
+        return target_btn
             
     def regrid(self):
         new_image_paths_from_disk = list_image_files(self._directory_path)
@@ -281,7 +291,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         # to match the existing behavior of showing newest first
         new_image_paths_from_disk.reverse()
 
-        for btn, _ in self._active_widgets.values():
+        for btn in self._active_widgets.values():
             assert btn is not None
             assert btn.winfo_exists()
             btn.grid_forget()
@@ -290,8 +300,8 @@ class DirectoryThumbnailGrid(tk.Frame):
 
         # Create/reuse and configure buttons for the new set of image paths
         for img_path in new_image_paths_from_disk:
-            target_btn, tk_image_ref = self.get_button_and_ref(img_path, self._item_fixed_width)
-            self._active_widgets[img_path] = (target_btn, tk_image_ref)
+            target_btn = self.get_button(img_path, self._item_fixed_width)
+            self._active_widgets[img_path] = target_btn
             
         self._perform_grid_layout() 
 
@@ -355,7 +365,7 @@ class DirectoryThumbnailGrid(tk.Frame):
 
         # Widget Placement Loop
         for i, img_path in enumerate(self._active_widgets.keys()):
-            widget, _ = self._active_widgets.get(img_path) 
+            widget = self._active_widgets.get(img_path) 
             
             if widget is None or not widget.winfo_exists():
                 print(f"Warning: Attempted to layout a non-existent widget for path '{img_path}'. Skipping.")
@@ -393,7 +403,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         return tk_thumbnail
 
     def destroy(self):
-        for btn, _ in self._active_widgets.values(): 
+        for btn in self._active_widgets.values(): 
             if btn is not None and btn.winfo_exists():
                 btn.image = None
                 btn.destroy() 
