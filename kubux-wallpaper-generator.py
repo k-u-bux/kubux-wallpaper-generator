@@ -175,15 +175,46 @@ def unique_name(original_path, category):
     # Return the full unique filename with the original extension
     return f"{base_name}{ext}"
 
-# Helper function for DirectoryThumbnailGrid
+def get_parent_directory(path):
+    """
+    Returns the parent directory of the given path.
+    """
+    return os.path.dirname(path)
+
+def list_subdirectories(parent_directory_path):
+    """
+    Lists all immediate subdirectories within a given parent directory.
+    """
+    if not os.path.isdir(parent_directory_path):
+        return []
+
+    subdirectories = []
+    for item_name in os.listdir(parent_directory_path):
+        item_path = os.path.join(parent_directory_path, item_name)
+        if os.path.isdir(item_path):
+            subdirectories.append(item_path)
+    
+    subdirectories.sort() # Optional: keep the list sorted
+    return subdirectories
+
 def list_image_files(directory_path):
     if not os.path.isdir(directory_path):
         return []
+
     image_files = []
+
+    SUPPORTED_IMAGE_EXTENSIONS = (
+        '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tif', '.tiff', '.webp',
+        '.ico', '.icns', '.avif', '.dds', '.msp', '.pcx', '.ppm',
+        '.pbm', '.pgm', '.sgi', '.tga', '.xbm', '.xpm'
+    )
+
     for filename in os.listdir(directory_path):
         f_path = os.path.join(directory_path, filename)
-        if os.path.isfile(f_path) and filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
+        # Check if it's a file and its lowercase extension is in our supported list
+        if os.path.isfile(f_path) and filename.lower().endswith(SUPPORTED_IMAGE_EXTENSIONS):
             image_files.append(f_path)
+
     image_files.sort()
     return image_files
 
@@ -211,6 +242,19 @@ class DirectoryThumbnailGrid(tk.Frame):
         self._item_fixed_width = width;
         self.regrid();
 
+    def get_button_and_ref(self, img_path, width):
+        cache_key = uniq_file_id(img_path, width)
+        target_btn, tk_image = self._known_widgets.get(cache_key, (None, None)) 
+        
+        if target_btn is None:
+            target_btn = tk.Button(self)
+            tk_image_ref = self._configure_thumbnail_button_internal(target_btn, img_path, tk_image)
+            self._known_widgets[cache_key] = (target_btn, tk_image_ref)
+        else:
+            assert not tk_image is None
+            
+        return (target_btn, tk_image_ref)
+            
     def regrid(self):
         new_image_paths_from_disk = list_image_files(self._directory_path)
         # Note: Since the helper returns sorted (oldest first), we need to reverse it
@@ -226,18 +270,7 @@ class DirectoryThumbnailGrid(tk.Frame):
 
         # Create/reuse and configure buttons for the new set of image paths
         for img_path in new_image_paths_from_disk:
-            # Try to get previous button and its associated image
-            cache_key = uniq_file_id(img_path, self._item_fixed_width)
-            target_btn, tk_image = self._known_widgets.get(cache_key, (None, None)) 
-
-            if target_btn is None:
-                target_btn = tk.Button(self)
-                
-            # Configure the button and get the PhotoImage back
-            tk_image_ref = self._configure_thumbnail_button_internal(target_btn, img_path, tk_image)
-            
-            # Store the button AND the PhotoImage together as a tuple
-            self._known_widgets[cache_key] = (target_btn, tk_image_ref)
+            target_btn, tk_image_ref = self.get_button_and_ref(img_path, self._item_fixed_width)
             self._active_widgets[img_path] = (target_btn, tk_image_ref)
             
         self._perform_grid_layout() 
