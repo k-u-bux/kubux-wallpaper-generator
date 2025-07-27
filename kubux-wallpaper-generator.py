@@ -204,15 +204,10 @@ class DirectoryThumbnailGrid(tk.Frame):
 
         self.bind("<Configure>", self._on_resize)
 
-    def set_directory_path(self, path):
-        if self._directory_path != path:
-            self._directory_path = path
-            self.regrid()
-
-    def set_item_width(self, width):
-        if self._item_fixed_width != width:
-            self._item_fixed_width = width
-            self.regrid()
+    def set_size_and_path(self, width, path=IMAGE_DIR):
+        self._directory_path = path;
+        self._item_fixed_width = width;
+        self.regrid();
 
     def regrid(self):
         new_image_paths_from_disk = list_image_files(self._directory_path)
@@ -287,7 +282,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         return min(calculated_cols, 10)
 
     def _perform_grid_layout(self):
-        desired_content_cols_for_this_pass = self._calculate_columns(self.winfo_width())
+        desired_content_cols_for_this_pass = self._calculate_columns(self.master.winfo_width())
         if desired_content_cols_for_this_pass == 0:
             desired_content_cols_for_this_pass = 1 
 
@@ -358,8 +353,6 @@ class ImagePickerDialog(tk.Toplevel):
 
         self.master_app = master
         self.thumbnail_max_size = thumbnail_max_size
-        self.image_dir_path = image_dir_path
-
         self.current_directory = ""
         if hasattr(self.master_app, 'app_settings'):
             saved_dir = self.master_app.app_settings.get('image_picker_last_directory')
@@ -385,20 +378,20 @@ class ImagePickerDialog(tk.Toplevel):
         self.grab_release()
         self.withdraw()
 
-    def show(self, thumbnail_max_size, image_dir_path):
-        self.thumbnail_max_size = thumbnail_max_size
-        self.image_dir_path = image_dir_path
+    def repaint(self):
+        self.gallery_grid.set_size_and_path(self.thumbnail_max_size, self.current_directory)
+        self.update_idletasks()
+
+    def show(self, width):
+        self.thumbnail_max_size = width
         self.deiconify()
         self._load_geometry()
-        self._browse_directory(self.current_directory)
         self.title("Add Images to Collection")
         self.transient(self.master)
         self.grab_set()
-        self.update_idletasks()
-        self.gallery_grid.set_item_width(self.thumbnail_max_size)
-        self.update_idletasks()
+        self._browse_directory(self.current_directory)
         self.after(100, self.focus_set)
-
+ 
     def create_widgets(self):
         # Thumbnail Display Area (Canvas and Scrollbar)
         self.canvas_frame = ttk.Frame(self)
@@ -422,7 +415,6 @@ class ImagePickerDialog(tk.Toplevel):
 
         self.gallery_canvas.bind("<Configure>", self._on_canvas_configure)
         self.gallery_grid.bind("<Configure>", lambda e: self.gallery_canvas.configure(scrollregion=self.gallery_canvas.bbox("all")))
-        self.gallery_grid.regrid()
         
         self._bind_mousewheel(self)
 
@@ -515,8 +507,8 @@ class ImagePickerDialog(tk.Toplevel):
             return
 
         self.current_directory = path
-        self.gallery_grid.set_directory_path(path)
         self._update_breadcrumbs()
+        self.repaint()
 
     def _update_breadcrumbs(self):
         for widget in self.breadcrumb_frame.winfo_children():
@@ -872,7 +864,7 @@ class WallpaperApp(tk.Tk):
     def _gallery_do_scale_update(self, scale):
         self.current_thumbnail_scale = scale
         self.gallery_thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * scale)
-        self.gallery_grid.set_item_width(self.gallery_thumbnail_max_size)
+        self.gallery_grid.set_size_and_path(self.gallery_thumbnail_max_size)
 
     def _gallery_on_canvas_configure(self, event):
         if not self._initial_load_done and event.width > 1:
@@ -1037,7 +1029,7 @@ class WallpaperApp(tk.Tk):
     def manually_add_images(self):
         if self.dialog is None:
             self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, IMAGE_DIR)
-        self.dialog.show(self.gallery_thumbnail_max_size, IMAGE_DIR)
+        self.dialog.show(self.gallery_thumbnail_max_size)
 
     def delete_selected_image(self):
         path_to_delete = self.gallery_current_selection
