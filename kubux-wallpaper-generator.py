@@ -211,11 +211,12 @@ path_name_queue = queue.Queue()
 def background(source_of_truth):
     while True:
         current_directory = source_of_truth.current_directory
-        current_width = source_of_truth.thumbnail_max_width
+        current_width = source_of_truth.thumbnail_max_size
         to_do_list = list_relevant_files( current_directory )
-        for path_name in to_to_list:
+        for path_name in to_do_list:
             if source_of_truth.stop_caching:
                 return
+            print(f"background: {path_name}")
             get_or_make_thumbnail(path_name, current_width)
             path_name_queue.put(path_name)
         old_directory = current_directory
@@ -413,6 +414,15 @@ class DirectoryThumbnailGrid(tk.Frame):
 # --- GUI Application ---
 
 class ImagePickerDialog(tk.Toplevel):
+    def cache_widget(self):
+        try:
+            path_name = path_name_queue.get_nowait()
+            self.gallery_grid.get_button(path_name, self.thumbnail_max_size)
+            print(f"created button for {path_name} at size {self.thumbnail_max_size}")
+        except queue.Empty:
+            pass
+        self.after(50, self.cache_widget)
+        
     def __init__(self, master, thumbnail_max_size, image_dir_path):
         super().__init__(master)
         self.withdraw()
@@ -438,7 +448,11 @@ class ImagePickerDialog(tk.Toplevel):
         self.create_widgets()
 
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
-        
+
+        self.stop_caching = False
+        self.background = threading.Thread(target=background, args=(self,))
+        self.background.start()
+        self.after(0, self.cache_widget)
 
     def hide(self):
         self.grab_release()
@@ -754,6 +768,8 @@ class WallpaperApp(tk.Tk):
             print(f"Error saving app settings: {e}")
 
     def on_closing(self):
+        if not self.dialog is None:
+            self.dialog.stop_caching = True
         self.save_prompt_history()
         self.save_app_settings() 
         self.destroy() 
