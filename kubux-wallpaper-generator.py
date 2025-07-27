@@ -205,24 +205,39 @@ def list_relevant_files(dir_path):
 
 path_name_queue = queue.Queue()
 
-def background(source_of_truth):
-    while True:
-        current_directory = source_of_truth.current_directory
-        current_width = source_of_truth.thumbnail_max_size
-        to_do_list = list_relevant_files( current_directory )
-        for path_name in to_do_list:
-            if source_of_truth.stop_caching:
-                return
-            print(f"background: {path_name}")
-            get_or_make_thumbnail(path_name, current_width)
-            path_name_queue.put(path_name)
-        old_directory = current_directory
-        current_directory = source_of_truth.current_directory
-        while old_directory == current_directory:
-            if source_of_truth.stop_caching:
-                return
-            time.sleep( 3 )
-            current_directory = source_of_truth.current_directory 
+class BackgroundWorker:
+    def background(self):
+        while self.keep_running:
+            old_size = self.current_size
+            old_directory = self.current_dir
+            to_do_list = list_relevant_files( old_directory )
+            for path_name in to_do_list:
+                if not self.keep_running:
+                    return                
+                if self.keep_running and ( old_size == self.current_size ) and ( old_directory == self.current_dir ):
+                    print(f"background: {path_name}")
+                    get_or_make_thumbnail(path_name, old_size)
+                    path_name_queue.put(path_name)
+                else:
+                    break
+            while self.keep_running and ( old_size == self.current_size ) and ( old_directory == self.current_dir ):
+                time.sleep(2)
+
+    def __init__(self):
+        self.keep_running = True
+        self.current_size = 0
+        self.current_dir = ""
+        self.worker = threading.Thread( target=self.background )
+
+    def run(self, dir_path, size):
+        self.current_size = size
+        self.current_dir = dir_path
+        self.worker.start()
+
+    def stop(self):
+        self.keep_running = False
+        
+background_worker = BackgroundWorker()
 
 
 def list_image_files(directory_path):
@@ -421,19 +436,7 @@ class ImagePickerDialog(tk.Toplevel):
 
         self.master_app = master
         self.thumbnail_max_size = thumbnail_max_size
-        self.current_directory = ""
-        if hasattr(self.master_app, 'app_settings'):
-            saved_dir = self.master_app.app_settings.get('image_picker_last_directory')
-            if saved_dir and os.path.isdir(saved_dir):
-                self.current_directory = saved_dir
-            else:
-                self.current_directory = os.path.expanduser(os.path.join('~', 'Pictures'))
-                if not os.path.isdir(self.current_directory):
-                    self.current_directory = os.path.expanduser('~')
-        else:
-            self.current_directory = os.path.expanduser(os.path.join('~', 'Pictures'))
-            if not os.path.isdir(self.current_directory):
-                self.current_directory = os.path.expanduser('~')
+        self.current_directory = image_dir_path
 
         self.selected_files = {}
 
@@ -441,9 +444,6 @@ class ImagePickerDialog(tk.Toplevel):
 
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
-        self.stop_caching = False
-        self.background = threading.Thread(target=background, args=(self,))
-        self.background.start()
         self.after(0, self.cache_widget)
 
     def hide(self):
@@ -579,6 +579,7 @@ class ImagePickerDialog(tk.Toplevel):
             return
 
         self.current_directory = path
+        background_worker.currend_dir = path
         self._update_breadcrumbs()
         self.repaint()
 
@@ -707,6 +708,18 @@ class WallpaperApp(tk.Tk):
         self.update_idletasks()
         self.dialog = None
 
+    def image_dir(self):
+        if hasattr(self, 'app_settings'):
+            saved_dir = self.app_settings.get('image_picker_last_directory')
+            if saved_dir and os.path.isdir(saved_dir):
+                return  saved_dir
+
+        default_dir = os.path.expanduser(os.path.join('~', 'Pictures'))
+        if not os.path.isdir(default_dir):
+            default_dir = os.path.expanduser('~')
+        print(f"image_dir = {default_dir}")
+        return default_dir
+        
     def load_prompt_history(self):
         try:
             if os.path.exists(PROMPT_HISTORY_FILE):
@@ -760,8 +773,7 @@ class WallpaperApp(tk.Tk):
             print(f"Error saving app settings: {e}")
 
     def on_closing(self):
-        if not self.dialog is None:
-            self.dialog.stop_caching = True
+        background_worker.stop()
         self.save_prompt_history()
         self.save_app_settings() 
         self.destroy() 
@@ -863,7 +875,9 @@ class WallpaperApp(tk.Tk):
         ttk.Button(action_btn_frame, text="Add", command=self.manually_add_images).pack(side="left", padx=24)
         ttk.Button(action_btn_frame, text="Set Wallpaper", command=self.set_current_as_wallpaper).pack(side="left", padx=(24,2))
 
-        self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, IMAGE_DIR)
+        users_images = self.image_dir()
+        self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, users_images)
+        background_worker.run(users_images, self.gallery_thumbnail_max_size)
  
     def _gallery_configure_button(self, btn, img_path, tk_thumbnail):
         """Callback to configure gallery buttons."""
@@ -941,6 +955,7 @@ class WallpaperApp(tk.Tk):
         self.current_thumbnail_scale = scale
         self.gallery_thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * scale)
         self.gallery_grid.set_size_and_path(self.gallery_thumbnail_max_size)
+        background_worker.current_size = self.gallery_thumbnail_max_size
 
     def _gallery_on_canvas_configure(self, event):
         if not self._initial_load_done and event.width > 1:
@@ -1104,7 +1119,7 @@ class WallpaperApp(tk.Tk):
 
     def manually_add_images(self):
         if self.dialog is None:
-            self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, IMAGE_DIR)
+            self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, self.image_dir())
         self.dialog.show(self.gallery_thumbnail_max_size)
 
     def delete_selected_image(self):
