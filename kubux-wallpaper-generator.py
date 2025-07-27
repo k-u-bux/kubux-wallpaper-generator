@@ -579,7 +579,7 @@ class ImagePickerDialog(tk.Toplevel):
             return
 
         self.current_directory = path
-        background_worker.currend_dir = path
+        background_worker.current_dir = path
         self._update_breadcrumbs()
         self.repaint()
 
