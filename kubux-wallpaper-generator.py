@@ -72,29 +72,26 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
 
     pil_image_thumbnail = None
 
-    try:
-        if os.path.exists(cached_thumbnail_path):
+    # try reading from on-disk cache
+    if  os.path.exists(cached_thumbnail_path):
+        try:
             pil_image_thumbnail = Image.open(cached_thumbnail_path)
-        else:
-            full_img = Image.open(img_path)
-            full_img.thumbnail((thumbnail_max_size, thumbnail_max_size))
-            pil_image_thumbnail = full_img
-            pil_image_thumbnail.save(cached_thumbnail_path) 
+            GLOBAL_PIL_THUMBNAIL_CACHE[cache_key] = pil_image_thumbnail
+            return pil_image_thumbnail
+        except Exception as e:
+            print(f"Error loading thumbnail for {img_path}: {e}")
 
+    # if we are here, caching was not successful
+    try:
+        full_img = Image.open(img_path)
+        full_img.thumbnail((thumbnail_max_size, thumbnail_max_size))
+        pil_image_thumbnail = full_img
+        pil_image_thumbnail.save(cached_thumbnail_path) 
         GLOBAL_PIL_THUMBNAIL_CACHE[cache_key] = pil_image_thumbnail
-        
-        return pil_image_thumbnail
-
     except Exception as e:
-        print(f"Error loading/creating thumbnail for {img_path}: {e}")
-        if os.path.exists(cached_thumbnail_path):
-            try:
-                os.remove(cached_thumbnail_path)
-                print(f"Removed corrupted thumbnail: {cached_thumbnail_path}")
-            except Exception as ex:
-                print(f"Could not remove corrupted thumbnail file: {ex}")
-        return None
-    
+        print(f"Error loading of / creating thumbnail for {img_path}: {e}")
+
+    return pil_image_thumbnail
 
 
 # --- Wallpaper Setting Functions (Platform-Specific) ---
