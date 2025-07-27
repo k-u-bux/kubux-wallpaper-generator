@@ -197,6 +197,26 @@ def list_subdirectories(parent_directory_path):
     subdirectories.sort() # Optional: keep the list sorted
     return subdirectories
 
+def list_relevant_files(dir_path):
+    file_list = list_image_files(dir_path)
+    file_list.extend( list_image_files( get_parent_directory( dir_path ) ) )
+    for subdir in list_subdirectories( dir_path ):
+        file_list.extend( list_image_files( subdir ) )
+    return file_list;
+
+def background(source_of_truth):
+    while True:
+        current_directory = source_of_truth.current_directory
+        to_do_list = list_relevant_files( current_directory )
+        ... do stuff ...
+        old_directory = current_directory
+        current_directory = source_of_truth.current_directory
+        while old_directory == current_directory:
+            time.sleep( 3 )
+            current_directory = source_of_truth.current_directory 
+
+
+
 def list_image_files(directory_path):
     if not os.path.isdir(directory_path):
         return []
