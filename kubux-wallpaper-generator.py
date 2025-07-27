@@ -215,7 +215,7 @@ class BackgroundWorker:
                 if not self.keep_running:
                     return                
                 if self.keep_running and ( old_size == self.current_size ) and ( old_directory == self.current_dir ):
-                    print(f"background: {path_name}")
+                    # print(f"background: {path_name}")
                     get_or_make_thumbnail(path_name, old_size)
                     path_name_queue.put(path_name)
                 else:
@@ -425,7 +425,7 @@ class ImagePickerDialog(tk.Toplevel):
         try:
             path_name = path_name_queue.get_nowait()
             self.gallery_grid.get_button(path_name, self.thumbnail_max_size)
-            print(f"created button for {path_name} at size {self.thumbnail_max_size}")
+            # print(f"created button for {path_name} at size {self.thumbnail_max_size}")
         except queue.Empty:
             pass
         self.after(50, self.cache_widget)
