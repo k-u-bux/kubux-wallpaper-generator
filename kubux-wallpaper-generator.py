@@ -310,7 +310,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         self._item_fixed_width = item_fixed_width
         self._button_config_callback = button_config_callback 
         self._known_widgets = OrderedDict() # This is a dict: hash_str -> (tk.Button, ImageTk.PhotoImage)
-        self._active_widgets = {} # This is a dict: img_path -> tk.Button
+        self._active_widgets = {} # This is a dict: img_path -> (tk.Button, ImageTk.PhotoImage)
         self._last_known_width = -1
         self._cache_size = 2000
 
@@ -333,7 +333,7 @@ class DirectoryThumbnailGrid(tk.Frame):
             assert not tk_image is None
             self._known_widgets.move_to_end(cache_key)
             
-        return target_btn
+        return (target_btn, tk_image)
             
     def regrid(self):
         new_image_paths_from_disk = list_image_files(self._directory_path)
@@ -341,7 +341,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         # to match the existing behavior of showing newest first
         new_image_paths_from_disk.reverse()
 
-        for btn in self._active_widgets.values():
+        for btn, _ in self._active_widgets.values():
             assert btn is not None
             assert btn.winfo_exists()
             btn.grid_forget()
@@ -350,8 +350,8 @@ class DirectoryThumbnailGrid(tk.Frame):
 
         # Create/reuse and configure buttons for the new set of image paths
         for img_path in new_image_paths_from_disk:
-            target_btn = self.get_button(img_path, self._item_fixed_width)
-            self._active_widgets[img_path] = target_btn
+            target_btn, tk_image = self.get_button(img_path, self._item_fixed_width)
+            self._active_widgets[img_path] = (target_btn, tk_image)
             
         self._perform_grid_layout() 
 
@@ -415,7 +415,7 @@ class DirectoryThumbnailGrid(tk.Frame):
 
         # Widget Placement Loop
         for i, img_path in enumerate(self._active_widgets.keys()):
-            widget = self._active_widgets.get(img_path) 
+            widget, _ = self._active_widgets.get(img_path) 
             
             if widget is None or not widget.winfo_exists():
                 print(f"Warning: Attempted to layout a non-existent widget for path '{img_path}'. Skipping.")
@@ -426,8 +426,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         
         self.update_idletasks()
 
-        needed_cache_size = max( self._cache_size, len( self._active_widgets ) ) 
-        while len( self._known_widgets ) > needed_cache_size:
+        while len( self._known_widgets ) > self._cache_size:
             self._known_widgets.popitem(last=False)
         
     def _configure_thumbnail_button_internal(self, btn, img_path):
@@ -452,11 +451,16 @@ class DirectoryThumbnailGrid(tk.Frame):
         return tk_thumbnail
 
     def destroy(self):
-        for btn in self._active_widgets.values(): 
+        for btn, _ in self._active_widgets.values(): 
             if btn is not None and btn.winfo_exists():
                 btn.image = None
                 btn.destroy() 
         self._active_widgets.clear()
+        for btn, _ in self._known_widgets.values(): 
+            if btn is not None and btn.winfo_exists():
+                btn.image = None
+                btn.destroy() 
+        self._known_widgets.clear()
         super().destroy()
 
 # --- GUI Application ---
