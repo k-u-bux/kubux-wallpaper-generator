@@ -43,43 +43,25 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 os.makedirs(THUMBNAIL_CACHE_ROOT, exist_ok=True)
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-
-# def resize_image(image, width, height):
-#     result = image.copy()
-#     result.thumbnail((width, height), resample=Image.LANCZOS)
-#     return result
-
 def resize_image(image, target_width, target_height):
-    """
-    Resizes a PIL Image to fit within target_width and target_height
-    while maintaining aspect ratio. Upscales or downscales as needed.
-    """
     original_width, original_height = image.size
 
-    # Avoid division by zero if target dimensions are 0 (shouldn't happen with fw/fh > 1 check, but for robustness)
     if target_width <= 0 or target_height <= 0:
         return image.copy() # Return a copy of the original or a small placeholder
 
-    # Calculate aspect ratios
     target_aspect = target_width / target_height
     image_aspect = original_width / original_height
 
     if image_aspect > target_aspect:
-        # Image is wider relative to its height than the target area.
-        # Fit to target_width, calculate height based on original aspect ratio.
         new_width = target_width
         new_height = int(target_width / image_aspect)
     else:
-        # Image is taller relative to its width than the target area (or same aspect).
-        # Fit to target_height, calculate width based on original aspect ratio.
         new_height = target_height
         new_width = int(target_height * image_aspect)
 
-    # Ensure dimensions are at least 1x1 to prevent errors with very small targets
     new_width = max(1, new_width)
     new_height = max(1, new_height)
 
-    # Perform the resize using LANCZOS for high quality (good for both up & downscaling)
     return image.resize((new_width, new_height), resample=Image.LANCZOS)
 
 def uniq_file_id(img_path, width=-1):
