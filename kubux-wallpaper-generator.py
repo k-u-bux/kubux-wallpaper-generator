@@ -44,10 +44,12 @@ os.makedirs(THUMBNAIL_CACHE_ROOT, exist_ok=True)
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 
-# --- Caching thumbnails ---
-GLOBAL_PIL_THUMBNAIL_CACHE = {}
+def resize_image(image, width, height):
+    result = image.copy()
+    result.thumbnail((width, height), resample=Image.LANCZOS)
+    return result
 
-def uniq_file_id(img_path, width):
+def uniq_file_id(img_path, width=-1):
     try:
         mtime = os.path.getmtime(img_path)
     except FileNotFoundError:
@@ -59,11 +61,33 @@ def uniq_file_id(img_path, width):
     key = f"{img_path}_{width}_{mtime}"
     return hashlib.sha256(key.encode('utf-8')).hexdigest()
 
+PIL_CACHE = OrderedDict()
+
+def get_full_size_image(img_path):
+    cache_key = uniq_file_id(img_path)
+    if cache_key in PIL_CACHE:
+        PIL_CACHE.move_to_end(cache_key)
+        return PIL_CACHE[cache_key]
+    try:
+        full_image = Image.open(img_path)
+        PIL_CACHE[cache_key] = full_image;
+        if len( PIL_CACHE ) > 2000:
+            PIL_CACHE.popitem(last=False)
+            assert len( PIL_CACHE ) == 2000
+        return full_image
+    except Exception as e:
+        print(f"Error loading of for {img_path}: {e}")
+        return None
+        
+
+# --- Caching thumbnails ---
+# GLOBAL_PIL_THUMBNAIL_CACHE = {}
+
 def get_or_make_thumbnail(img_path, thumbnail_max_size):
     cache_key = uniq_file_id(img_path, thumbnail_max_size)
 
-    if cache_key in GLOBAL_PIL_THUMBNAIL_CACHE:
-        return GLOBAL_PIL_THUMBNAIL_CACHE.get(cache_key)
+    # if cache_key in GLOBAL_PIL_THUMBNAIL_CACHE:
+    #     return GLOBAL_PIL_THUMBNAIL_CACHE.get(cache_key)
 
     thumbnail_size_str = str(thumbnail_max_size)
     thumbnail_cache_subdir = os.path.join(THUMBNAIL_CACHE_ROOT, thumbnail_size_str)
@@ -77,18 +101,16 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
     if  os.path.exists(cached_thumbnail_path):
         try:
             pil_image_thumbnail = Image.open(cached_thumbnail_path)
-            GLOBAL_PIL_THUMBNAIL_CACHE[cache_key] = pil_image_thumbnail
+            # GLOBAL_PIL_THUMBNAIL_CACHE[cache_key] = pil_image_thumbnail
             return pil_image_thumbnail
         except Exception as e:
             print(f"Error loading thumbnail for {img_path}: {e}")
 
     # if we are here, caching was not successful
     try:
-        full_img = Image.open(img_path)
-        full_img.thumbnail((thumbnail_max_size, thumbnail_max_size))
-        pil_image_thumbnail = full_img
+        pil_image_thumbnail = resize_image( get_full_size_image(img_path), thumbnail_max_size, thumbnail_max_size )
         pil_image_thumbnail.save(cached_thumbnail_path) 
-        GLOBAL_PIL_THUMBNAIL_CACHE[cache_key] = pil_image_thumbnail
+        # GLOBAL_PIL_THUMBNAIL_CACHE[cache_key] = pil_image_thumbnail
     except Exception as e:
         print(f"Error loading of / creating thumbnail for {img_path}: {e}")
 
@@ -908,9 +930,6 @@ class WallpaperApp(tk.Tk):
             borderwidth=0,
             command=lambda p=img_path: self._gallery_on_thumbnail_click(p)
         )
-        
-        if self.gallery_current_selection == img_path:
-            btn.config(relief="solid", borderwidth=2, highlightbackground="blue")
 
     def set_initial_pane_positions(self):
         try:
@@ -941,21 +960,10 @@ class WallpaperApp(tk.Tk):
 
     def display_image(self, image_path):
         try:
-            full_img = Image.open(image_path)
+            full_img = get_full_size_image(image_path)
             fw, fh = self.generated_image_label.winfo_width(), self.generated_image_label.winfo_height()
             if fw <= 1 or fh <= 1: return
-            
-            img_aspect = full_img.width / full_img.height
-            frame_aspect = fw / fh
-            
-            if img_aspect > frame_aspect:
-                nw = fw - 10
-                nh = int(nw / img_aspect)
-            else:
-                nh = fh - 10
-                nw = int(nh * img_aspect)
-                
-            resized_img = full_img.resize((max(1, nw), max(1, nh)), Image.LANCZOS)
+            resized_img = resize_image( full_img, fw, fh )
             photo = ImageTk.PhotoImage(resized_img)
             self.generated_image_label.config(image=photo)
             self.generated_image_label.image = photo 
@@ -972,15 +980,56 @@ class WallpaperApp(tk.Tk):
 
     def _gallery_update_thumbnail_scale_callback(self, value):
         if self._gallery_scale_update_after_id: self.after_cancel(self._gallery_scale_update_after_id)
-        self._gallery_scale_update_after_id = self.after(400, lambda: self._gallery_do_scale_update(float(value)))
+        self._gallery_scale_update_after_id = self.after(300, lambda: self._gallery_do_scale_update(float(value)))
+
+    def _adjust_gallery_scroll_position(self, old_scroll_fraction):
+        # Get the bounding box of all items on the canvas to find the total content height
+        bbox = self.gallery_canvas.bbox("all")
+        
+        # If there's no content or bounding box is empty, just reset to top
+        if not bbox:
+            self.gallery_canvas.yview_moveto(0.0)
+            return
+    
+        # Calculate the total height of the content within the scrollregion
+        total_content_height = bbox[3] - bbox[1] # y2 - y1
+    
+        # Get the current visible height of the canvas
+        visible_canvas_height = self.gallery_canvas.winfo_height()
+    
+        # If the content is now smaller than or fits exactly within the visible canvas,
+        # simply scroll to the very top. No need to scroll otherwise.
+        if total_content_height <= visible_canvas_height:
+            self.gallery_canvas.yview_moveto(0.0)
+            return
+    
+        # Calculate the absolute pixel position of the old scroll, based on the *new* content height
+        old_abs_scroll_pos = old_scroll_fraction * total_content_height
+    
+        # Determine the maximum absolute scroll position possible (end of content minus visible height)
+        max_scroll_abs_pos = total_content_height - visible_canvas_height
+        if max_scroll_abs_pos < 0: # Should not happen if previous check passed, but for safety
+            max_scroll_abs_pos = 0
+    
+        # Ensure the new absolute scroll position doesn't exceed the end of the new content
+        new_abs_scroll_pos = min(old_abs_scroll_pos, max_scroll_abs_pos)
+    
+        # Convert the new absolute position back to a fractional position for yview_moveto
+        new_scroll_fraction = new_abs_scroll_pos / total_content_height
+    
+        # Finally, move the canvas view to the calculated new fractional position
+        self.gallery_canvas.yview_moveto(new_scroll_fraction)
 
     def _gallery_do_scale_update(self, scale):
         self.current_thumbnail_scale = scale
         self.gallery_thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * scale)
-        self.gallery_grid.set_size_and_path(self.gallery_thumbnail_max_size)
-        background_worker.current_size = self.gallery_thumbnail_max_size
         background_worker.pause()
-        self.after(3000, background_worker.resume)
+        old_scroll_fraction = self.gallery_canvas.yview()[0]
+        self.gallery_grid.set_size_and_path(self.gallery_thumbnail_max_size)
+        self.update_idletasks()
+        self._adjust_gallery_scroll_position(old_scroll_fraction)
+        background_worker.current_size = self.gallery_thumbnail_max_size
+        background_worker.resume()
 
     def _gallery_on_canvas_configure(self, event):
         if not self._initial_load_done and event.width > 1:
@@ -993,18 +1042,15 @@ class WallpaperApp(tk.Tk):
 
     def _do_gallery_resize_refresh(self, event):
         self.gallery_canvas.itemconfig(self.gallery_canvas.find_all()[0], width=event.width)
+        background_worker.pause()
         self.gallery_grid._on_resize()
-
+        background_worker.resume()
+        
     def _gallery_on_thumbnail_click(self, image_path):
         old_selection = self.gallery_current_selection
         self.gallery_current_selection = image_path
-        if old_selection != self.gallery_current_selection: self._gallery_update_selection_highlight(old_selection, image_path)
         self.display_image(image_path)
-
-    def _gallery_update_selection_highlight(self, old_path, new_path):
-        # Trigger a regrid to update button highlighting
-        self.gallery_grid.regrid()
-
+    
     def _gallery_bind_mousewheel(self, widget):
         widget.bind("<MouseWheel>", self._gallery_on_mousewheel, add="+")
         widget.bind("<Button-4>", lambda e: self._gallery_on_mousewheel(e), add="+")
