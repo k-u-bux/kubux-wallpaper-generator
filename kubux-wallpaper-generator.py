@@ -19,6 +19,7 @@ import secrets
 from datetime import datetime
 import hashlib
 import shutil
+from collections import OrderedDict
 
 # Load environment variables
 load_dotenv()
@@ -286,9 +287,10 @@ class DirectoryThumbnailGrid(tk.Frame):
         self._directory_path = directory_path
         self._item_fixed_width = item_fixed_width
         self._button_config_callback = button_config_callback 
-        self._known_widgets = {} # This is a dict: hash_str -> (tk.Button, ImageTk.PhotoImage)
+        self._known_widgets = OrderedDict() # This is a dict: hash_str -> (tk.Button, ImageTk.PhotoImage)
         self._active_widgets = {} # This is a dict: img_path -> tk.Button
-        self._last_known_width = -1 
+        self._last_known_width = -1
+        self._cache_size = 2000
 
         self.bind("<Configure>", self._on_resize)
 
@@ -307,6 +309,7 @@ class DirectoryThumbnailGrid(tk.Frame):
             self._known_widgets[cache_key] = (target_btn, tk_image_ref)
         else:
             assert not tk_image is None
+            self._known_widgets.move_to_end(cache_key)
             
         return target_btn
             
@@ -400,6 +403,10 @@ class DirectoryThumbnailGrid(tk.Frame):
             widget.grid(row=row, column=grid_column, padx=2, pady=2) 
         
         self.update_idletasks()
+
+        needed_cache_size = max( self._cache_size, len( self._active_widgets ) ) 
+        while len( self._known_widgets ) > needed_cache_size:
+            self._known_widgets.popitem(last=False)
         
     def _configure_thumbnail_button_internal(self, btn, img_path):
         thumbnail_pil = get_or_make_thumbnail(img_path, self._item_fixed_width)
@@ -729,7 +736,7 @@ class WallpaperApp(tk.Tk):
         default_dir = os.path.expanduser(os.path.join('~', 'Pictures'))
         if not os.path.isdir(default_dir):
             default_dir = os.path.expanduser('~')
-        print(f"image_dir = {default_dir}")
+        # print(f"image_dir = {default_dir}")
         return default_dir
         
     def load_prompt_history(self):
