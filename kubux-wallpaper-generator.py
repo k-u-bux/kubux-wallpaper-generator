@@ -718,13 +718,8 @@ class ImagePickerDialog(tk.Toplevel):
         
 class WallpaperApp(tk.Tk):
     def __init__(self):
-        super().__init__()
+        super().__init__(className="kubux-wallpaper-generator")
         self.title("kubux wallpaper generator")
-
-        try:
-            self.tk.call('wm', 'class', self._w, 'io.github.kubux.wallpaper-generator')
-        except tk.TclError: pass
-        
         self.current_image_path = None
         self.max_history_items = 25
         self.gallery_current_selection = None
