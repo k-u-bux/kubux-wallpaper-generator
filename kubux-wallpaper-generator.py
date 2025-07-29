@@ -683,7 +683,7 @@ class BreadCrumNavigator(ttk.Frame):
             self._long_press_timer_id = None
 
     def _show_subdirectory_menu(self, button):
-        path = getattr( button, 'path', None );
+        path = button.path
         selected_path = path
         if not path is None:
             all_entries = os.listdir(path)
