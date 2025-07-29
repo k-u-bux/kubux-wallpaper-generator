@@ -479,11 +479,106 @@ class DirectoryThumbnailGrid(tk.Frame):
         super().destroy()
 
 
+class LongMenu(tk.Toplevel):
+    def __init__(self, master, default_option, other_options, font=None, x_pos=None, y_pos=None):
+        super().__init__(master)
+        self.overrideredirect(True) # Remove window decorations (title bar, borders)
+        self.transient(master)      # Tie to master window
+        # self.grab_set()             # Make it modal, redirect all input here
+
+        self.result = default_option
+        self.options = other_options
+
+        self.app_font = font if font else ("TkDefaultFont", 12, "normal")
+
+        self.listbox_frame = ttk.Frame(self)
+        self.listbox_frame.pack(padx=10, pady=10, fill="both", expand=True)
+
+        self.listbox = tk.Listbox(
+            self.listbox_frame,
+            selectmode=tk.SINGLE,
+            font=self.app_font,
+            height=15
+        )
+        self.listbox.pack(side="left", fill="both", expand=True)
+
+        self.scrollbar = ttk.Scrollbar(self.listbox_frame, orient="vertical", command=self.listbox.yview)
+        self.scrollbar.pack(side="right", fill="y")
+        self.listbox.config(yscrollcommand=self.scrollbar.set)
+
+        # Populate the listbox
+        for option_name in other_options:
+            self.listbox.insert(tk.END, option_name)
+
+        # --- Bindings ---
+        self.listbox.bind("<<ListboxSelect>>", self._on_listbox_select)
+        self.listbox.bind("<Double-Button-1>", self._on_double_click) # Double-click to select and close
+        self.bind("<Return>", self._on_return_key) # Enter key to select and close
+        self.bind("<Escape>", self._on_cancel) # Close on Escape key
+        self.bind("<FocusOut>", self._on_focus_out)
+        
+        # --- Positioning and Focus ---
+        self.update_idletasks()
+        self.grab_set() 
+        if x_pos is not None and y_pos is not None:
+            # Adjust if menu would go off-screen to the right
+            screen_width = self.winfo_screenwidth()
+            popup_w = self.winfo_width()
+            if x_pos + popup_w > screen_width:
+                x_pos = screen_width - popup_w - 5 # 5 pixels margin
+
+            # Adjust if menu would go off-screen downwards (or upwards if preferred)
+            screen_height = self.winfo_screenheight()
+            popup_h = self.winfo_height()
+            if y_pos + popup_h > screen_height:
+                y_pos = screen_height - popup_h - 5 # 5 pixels margin
+
+            self.geometry(f"+{int(x_pos)}+{int(y_pos)}")        # Center the window relative to its master
+        else:
+            master_x = master.winfo_x()
+            master_y = master.winfo_y()
+            master_w = master.winfo_width()
+            master_h = master.winfo_height()
+            
+            popup_w = self.winfo_width()
+            popup_h = self.winfo_height()
+            
+            x_pos = master_x + (master_w // 2) - (popup_w // 2)
+            y_pos = master_y + (master_h // 2) - (popup_h // 2)
+            self.geometry(f"+{int(x_pos)}+{int(y_pos)}")
+
+        self.listbox.focus_set() # Set focus to the listbox for immediate keyboard navigation
+        self.wait_window(self) # Make the dialog modal until it's destroyed
+
+    def _on_listbox_select(self, event):
+        self._on_ok()
+
+    def _on_double_click(self, event):
+        self._on_ok()
+
+    def _on_return_key(self, event):
+        self._on_ok()
+
+    def _on_ok(self):
+        selected_indices = self.listbox.curselection()
+        if selected_indices:
+            # Store the selected directory name, not the full path yet
+            self.result = self.options[selected_indices[0]]
+        self.destroy()
+
+    def _on_cancel(self, event=None):
+        self.result = None
+        self.destroy()
+
+    def _on_focus_out(self, event):
+        # If the widget losing focus is not a child of this menu (e.g., clicking outside)
+        # then close the menu.
+        if self.winfo_exists() and not self.focus_get() in self.winfo_children():
+            self._on_cancel()
+
+        
 class BreadCrumNavigator(ttk.Frame):
     def __init__(self, master, on_navigate_callback=None, font=None,
-                 button_style='Breadcrumb.TButton', 
-                 menubutton_style='Breadcrumb.TMenubutton', 
-                 label_style='Breadcrumb.TLabel', 
                  long_press_threshold_ms=400, drag_threshold_pixels=5,
                  max_menu_items=25):
         
@@ -500,10 +595,6 @@ class BreadCrumNavigator(ttk.Frame):
         self._press_x = 0
         self._press_y = 0
         self._active_button = None 
-
-        self.button_style = button_style
-        self.menubutton_style = menubutton_style
-        self.label_style = label_style
 
         if isinstance(font, tkFont.Font):
             self.btn_font = (
@@ -529,71 +620,25 @@ class BreadCrumNavigator(ttk.Frame):
         for widget in self.winfo_children():
             widget.destroy()
 
-        path_parts = []
+        btn_list = []
         current_display_path = self.current_path
-        
-        if platform.system() == "Windows" and len(current_display_path) >= 2 and current_display_path[1] == ':':
-            drive_root = current_display_path[:3] if len(current_display_path) >= 3 and current_display_path[2] == os.path.sep else current_display_path[:2]
-            path_parts.insert(0, drive_root)
-            remaining_path = current_display_path[len(drive_root):]
-            current_display_path = remaining_path
-        
-        while current_display_path and current_display_path != os.path.dirname(current_display_path):
-            part = os.path.basename(current_display_path)
-            if part == '': 
-                part = os.path.sep
-            path_parts.insert(0, part)
-            current_display_path = os.path.dirname(current_display_path)
-        
-        if not path_parts and self.current_path == os.path.sep:
-            path_parts = [os.path.sep]
-
-
-        accumulated_path = ""
-        for i, part in enumerate(path_parts):
-            if i == 0:
-                if platform.system() == "Windows" and len(part) >= 2 and part[1] == ':':
-                    accumulated_path = part
-                    if not accumulated_path.endswith(os.path.sep):
-                        accumulated_path += os.path.sep
-                else:
-                    accumulated_path = os.path.sep if part == os.path.sep else os.path.join(os.path.sep, part)
-            else:
-                if platform.system() == "Windows" and accumulated_path.endswith(':'): 
-                    accumulated_path = os.path.join(accumulated_path + os.path.sep, part)
-                else:
-                    accumulated_path = os.path.join(accumulated_path, part)
+        while len(current_display_path) > 1: 
+            path = current_display_path
+            current_display_path = os.path.dirname(path)
+            btn_text = os.path.basename(path)
+            if btn_text == '': 
+                btn_text = os.path.sep
+            btn = tk.Button(self, text=btn_text, font=self.btn_font)
+            btn.path = path
+            btn.bind("<ButtonPress-1>", self._on_button_press)
+            btn.bind("<ButtonRelease-1>", self._on_button_release)
+            btn.bind("<Motion>", self._on_button_motion)
+            btn_list.insert( 0, btn );        
             
-            btn_target_path = os.path.normpath(accumulated_path)
-            if platform.system() == "Windows" and len(btn_target_path) == 2 and btn_target_path[1] == ':':
-                btn_target_path += os.path.sep
-            elif btn_target_path == '': 
-                btn_target_path = os.path.sep
-
-            btn_text = part if part != '' else os.path.sep 
-
-            if i < len(path_parts) - 1:
-                btn = ttk.Button(self, text=btn_text, style=self.button_style)
-                btn.pack(side="left")
-                
-                btn._target_path = btn_target_path
-                btn._parent_for_menu = btn_target_path 
-
-                btn.bind("<ButtonPress-1>", self._on_button_press)
-                btn.bind("<ButtonRelease-1>", self._on_button_release)
-                btn.bind("<Motion>", self._on_button_motion)
-            else:
-                current_dir_btn = ttk.Menubutton(self, text=btn_text, direction="above", style=self.menubutton_style)
-                current_dir_btn.pack(side="left")
-                current_dir_menu = tk.Menu(current_dir_btn, tearoff=0, font=self.btn_font) 
-                current_dir_btn.config(menu=current_dir_menu)
-
-                self._populate_menu_with_subdirs(current_dir_menu, self.current_path)
-
-
-            if i < len(path_parts) - 1:
-                ttk.Label(self, text=" > ", style=self.label_style).pack(side="left")
-
+        for i, btn in enumerate( btn_list ):
+            ttk.Label(self, text=" > ").pack(side="left")
+            btn.pack(side="left")            
+            
     def _trigger_navigate(self, path):
         if self.on_navigate_callback:
             self.on_navigate_callback(path)
@@ -614,9 +659,9 @@ class BreadCrumNavigator(ttk.Frame):
             dist = (abs(event.x_root - self._press_x)**2 + abs(event.y_root - self._press_y)**2)**0.5
             if dist < self.DRAG_THRESHOLD_PIXELS:
                 if (time.time() - self._press_start_time) * 1000 < self.LONG_PRESS_THRESHOLD_MS:
-                    target_path = getattr(self._active_button, '_target_path', None)
-                    if target_path and self.on_navigate_callback:
-                        self.on_navigate_callback(target_path)
+                    path = getattr(self._active_button, 'path', None)
+                    if path and self.on_navigate_callback:
+                        self.on_navigate_callback(path)
             self._active_button = None
 
     def _on_button_motion(self, event):
@@ -629,78 +674,53 @@ class BreadCrumNavigator(ttk.Frame):
 
     def _on_long_press_timeout(self, button):
         if self._active_button is button:
-            parent_for_menu = getattr(button, '_parent_for_menu', None)
-            if parent_for_menu:
-                self._show_subdirectory_menu(button, parent_for_menu)
+            self._show_subdirectory_menu(button)
             self._long_press_timer_id = None
 
-    def _populate_menu_with_subdirs(self, menu, path):
-        """
-        Helper to populate a given tk.Menu with subdirectories, handling hidden files and limits.
-        """
-        try:
+    def _show_subdirectory_menu(self, button):
+        path = getattr( button, 'path', None );
+        if not path is None:
             all_entries = os.listdir(path)
             subdirs = []
             hidden_subdirs = []
-
             for entry in all_entries:
-                full_path = os.path.join(path, entry)
-                if os.path.isdir(full_path):
+                full_path = os.path.join( path, entry );
+                if os.path.isdir( full_path ):
                     if entry.startswith('.'):
                         hidden_subdirs.append(entry)
                     else:
                         subdirs.append(entry)
-
-            # Sort non-hidden and hidden separately
             subdirs.sort()
             hidden_subdirs.sort()
-
-            # Combine: non-hidden first, then hidden
             sorted_subdirs = subdirs + hidden_subdirs
-            
-            # Apply menu item limit
-            if len(sorted_subdirs) > self.max_menu_items:
-                display_subdirs = sorted_subdirs[:self.max_menu_items - 1] # Make space for "Browse..."
-                remaining_count = len(sorted_subdirs) - len(display_subdirs)
+
+            # Get the button's screen coordinates
+            button_x = button.winfo_rootx()
+            button_y = button.winfo_rooty()
+            button_height = button.winfo_height()
+
+            # Calculate the position for the LongMenu to appear below the button
+            menu_x = button_x
+            menu_y = button_y + button_height
+
+            selector_dialog = LongMenu(
+                button,
+                None,
+                sorted_subdirs,
+                font=self.btn_font,
+                x_pos=menu_x,
+                y_pos=menu_y
+            )
+            selected_name = selector_dialog.result
+            if selected_name:
+                selected_path = os.path.join(path, selected_name)
             else:
-                display_subdirs = sorted_subdirs
-                remaining_count = 0
-
-            if not display_subdirs and remaining_count == 0:
-                menu.add_command(label="(No subdirectories)", state="disabled")
-            else:
-                for subdir in display_subdirs:
-                    subdir_path = os.path.join(path, subdir)
-                    menu.add_command(label=subdir, command=lambda p=subdir_path: self._trigger_navigate(p))
-                
-                if remaining_count > 0:
-                    menu.add_separator()
-                    # Add a "Browse..." option to open a file dialog
-                    menu.add_command(label=f"Browse... ({remaining_count} more)", 
-                                     command=lambda p=path: self._browse_dialog_for_path(p))
-
-        except OSError:
-            menu.add_command(label="(Access Denied)", state="disabled")
-
-    def _browse_dialog_for_path(self, initial_path):
-        """Opens a filedialog.askdirectory and triggers navigation if a path is chosen."""
-        selected_path = filedialog.askdirectory(
-            parent=self.master,
-            initialdir=initial_path,
-            title="Select a directory"
-        )
-        if selected_path:
+                selected_path = path;
             self._trigger_navigate(selected_path)
+        else:
+            print("Attribute 'path' not set on button")    
 
-    def _show_subdirectory_menu(self, button, path):
-        """
-        Creates and displays a context menu with subdirectories for long-press.
-        """
-        menu = tk.Menu(button, tearoff=0, font=self.btn_font)
-        self._populate_menu_with_subdirs(menu, path)
-        menu.post(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height())
-
-        
+            
 class ImagePickerDialog(tk.Toplevel):
     def cache_widget(self):
         try:
@@ -786,14 +806,8 @@ class ImagePickerDialog(tk.Toplevel):
             control_frame, # Parent is the control_frame
             on_navigate_callback=self._browse_directory, # This callback will update the grid and breadcrumbs
             font=self.master_app.app_font, # Use the app's font
-            button_style='Breadcrumb.TButton', # Assuming these styles are defined in the main app
-            menubutton_style='Breadcrumb.TMenubutton',
-            label_style='Breadcrumb.TLabel',
-            max_menu_items=15 # Consistent with the main app's breadcrumb limit
         )
         self.breadcrumb_nav.pack(side="left", fill="x", expand=True, padx=5)
-        # self.breadcrumb_frame = ttk.Frame(control_frame)
-        # self.breadcrumb_frame.pack(side="left", fill="x", expand=True, padx=5)
 
         # Right side: Add and Cancel buttons (packed in reverse order for correct visual sequence)
         ttk.Button(control_frame, text="Cancel", command=self._on_closing).pack(side="right")
