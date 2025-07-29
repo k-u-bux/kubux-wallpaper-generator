@@ -522,6 +522,7 @@ class ImagePickerDialog(tk.Toplevel):
         self.transient(self.master)
         self.grab_set()
         self._browse_directory(self.current_directory)
+        self.gallery_canvas.yview_moveto(0.0)
         self.after(100, self.focus_set)
  
     def create_widgets(self):
