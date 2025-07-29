@@ -664,7 +664,7 @@ class BreadCrumNavigator(ttk.Frame):
             dist = (abs(event.x_root - self._press_x)**2 + abs(event.y_root - self._press_y)**2)**0.5
             if dist < self.DRAG_THRESHOLD_PIXELS:
                 if (time.time() - self._press_start_time) * 1000 < self.LONG_PRESS_THRESHOLD_MS:
-                    path = getattr(self._active_button, 'path', None)
+                    path = self._active_button.path
                     if path and self.on_navigate_callback:
                         self.on_navigate_callback(path)
             self._active_button = None
@@ -685,48 +685,46 @@ class BreadCrumNavigator(ttk.Frame):
     def _show_subdirectory_menu(self, button):
         path = button.path
         selected_path = path
-        if not path is None:
-            all_entries = os.listdir(path)
-            subdirs = []
-            hidden_subdirs = []
-            for entry in all_entries:
-                full_path = os.path.join( path, entry );
-                if os.path.isdir( full_path ):
-                    if entry.startswith('.'):
-                        hidden_subdirs.append(entry)
-                    else:
-                        subdirs.append(entry)
-            subdirs.sort()
-            hidden_subdirs.sort()
-            sorted_subdirs = subdirs + hidden_subdirs
-            
-            if sorted_subdirs:
-                # Get the button's screen coordinates
-                button_x = button.winfo_rootx()
-                button_y = button.winfo_rooty()
-                button_height = button.winfo_height()
-                
-                # Calculate the position for the LongMenu to appear below the button
-                menu_x = button_x
-                menu_y = button_y + button_height
-                
-                selector_dialog = LongMenu(
-                    button,
-                    None,
-                    sorted_subdirs,
-                    font=self.btn_font,
-                    x_pos=menu_x,
-                    y_pos=menu_y
-                )
-                selected_name = selector_dialog.result
-                if selected_name:
-                    selected_path = os.path.join(path, selected_name)
-                    
-            self._trigger_navigate(selected_path)
-        else:
-            print("Attribute 'path' not set on button")    
 
+        all_entries = os.listdir(path)
+        subdirs = []
+        hidden_subdirs = []
+        for entry in all_entries:
+            full_path = os.path.join( path, entry );
+            if os.path.isdir( full_path ):
+                if entry.startswith('.'):
+                    hidden_subdirs.append(entry)
+                else:
+                    subdirs.append(entry)
+        subdirs.sort()
+        hidden_subdirs.sort()
+        sorted_subdirs = subdirs + hidden_subdirs
+        
+        if sorted_subdirs:
+            # Get the button's screen coordinates
+            button_x = button.winfo_rootx()
+            button_y = button.winfo_rooty()
+            button_height = button.winfo_height()
             
+            # Calculate the position for the LongMenu to appear below the button
+            menu_x = button_x
+            menu_y = button_y + button_height
+            
+            selector_dialog = LongMenu(
+                button,
+                None,
+                sorted_subdirs,
+                font=self.btn_font,
+                x_pos=menu_x,
+                y_pos=menu_y
+            )
+            selected_name = selector_dialog.result
+            if selected_name:
+                selected_path = os.path.join(path, selected_name)
+                
+        self._trigger_navigate(selected_path)
+
+        
 class ImagePickerDialog(tk.Toplevel):
     def cache_widget(self):
         try:
