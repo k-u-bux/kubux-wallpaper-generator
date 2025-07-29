@@ -830,7 +830,7 @@ class ImagePickerDialog(tk.Toplevel):
             relief="flat", 
             borderwidth=0,
             highlightthickness=3,
-            background="lightgrey",
+            bg="lightgrey",
             command=lambda p=img_path: self._toggle_selection(p, btn)
         )
         
@@ -1154,7 +1154,7 @@ class WallpaperApp(tk.Tk):
             cursor="hand2", 
             relief="flat", 
             borderwidth=0,
-            background="lightgrey",
+            bg="lightgrey",
             command=lambda p=img_path: self._gallery_on_thumbnail_click(p)
         )
 
