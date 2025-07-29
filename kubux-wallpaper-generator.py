@@ -944,7 +944,7 @@ class WallpaperApp(tk.Tk):
         super().__init__(className="kubux-wallpaper-generator")
         self.title("kubux wallpaper generator")
         self.current_image_path = None
-        self.max_history_items = 25
+        self.max_history_items = 125
         self.gallery_current_selection = None
         self.gallery_thumbnail_max_size = DEFAULT_THUMBNAIL_DIM
         self._gallery_scale_update_after_id = None
