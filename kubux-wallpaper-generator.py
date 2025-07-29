@@ -131,6 +131,11 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
 
     return pil_image_thumbnail
 
+def make_tk_image( pil_image ):
+    if pil_image.mode not in ("RGB", "RGBA", "L", "1"):
+        pil_image = pil_image.convert("RGBA")
+    return ImageTk.PhotoImage(pil_image)
+
 
 # --- Wallpaper Setting Functions (Platform-Specific) ---
 def set_wallpaper(image_path):
@@ -343,6 +348,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         if target_btn is None:
             target_btn = tk.Button(self)
             tk_image_ref = self._configure_thumbnail_button_internal(target_btn, img_path)
+            assert not tk_image_ref is None
             self._known_widgets[cache_key] = (target_btn, tk_image_ref)
         else:
             assert not tk_image is None
@@ -449,7 +455,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         tk_thumbnail = None
         if thumbnail_pil:
             try:
-                tk_thumbnail = ImageTk.PhotoImage(thumbnail_pil)
+                tk_thumbnail = make_tk_image(thumbnail_pil)
             except Exception as e:
                 print(f"Error converting PIL image to ImageTk.PhotoImage for {img_path}: {e}")
         
@@ -1183,7 +1189,7 @@ class WallpaperApp(tk.Tk):
             fw, fh = self.generated_image_label.winfo_width(), self.generated_image_label.winfo_height()
             if fw <= 1 or fh <= 1: return
             resized_img = resize_image( full_img, fw, fh )
-            photo = ImageTk.PhotoImage(resized_img)
+            photo = make_tk_image(resized_img)
             self.generated_image_label.config(image=photo)
             self.generated_image_label.image = photo 
             self.current_image_path = image_path
