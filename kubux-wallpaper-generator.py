@@ -478,8 +478,229 @@ class DirectoryThumbnailGrid(tk.Frame):
         self._known_widgets.clear()
         super().destroy()
 
-# --- GUI Application ---
 
+class BreadCrumNavigator(ttk.Frame):
+    def __init__(self, master, on_navigate_callback=None, font=None,
+                 button_style='Breadcrumb.TButton', 
+                 menubutton_style='Breadcrumb.TMenubutton', 
+                 label_style='Breadcrumb.TLabel', 
+                 long_press_threshold_ms=400, drag_threshold_pixels=5,
+                 max_menu_items=25):
+        
+        super().__init__(master)
+        self.on_navigate_callback = on_navigate_callback
+        self.current_path = "" 
+
+        self.LONG_PRESS_THRESHOLD_MS = long_press_threshold_ms
+        self.DRAG_THRESHOLD_PIXELS = drag_threshold_pixels
+        self.max_menu_items = max_menu_items
+
+        self._long_press_timer_id = None
+        self._press_start_time = 0
+        self._press_x = 0
+        self._press_y = 0
+        self._active_button = None 
+
+        self.button_style = button_style
+        self.menubutton_style = menubutton_style
+        self.label_style = label_style
+
+        if isinstance(font, tkFont.Font):
+            self.btn_font = (
+                font.actual('family'),
+                font.actual('size'),
+                font.actual('weight') 
+            )
+        elif isinstance(font, (tuple, str)):
+            self.btn_font = font
+        else:
+            self.btn_font = ("TkDefaultFont", 10, "normal") 
+
+
+    def set_path(self, path):
+        if not os.path.isdir(path):
+            print(f"Warning: Path '{path}' is not a directory. Cannot set breadcrumbs.")
+            return
+
+        self.current_path = os.path.normpath(path)
+        self._update_breadcrumbs()
+
+    def _update_breadcrumbs(self):
+        for widget in self.winfo_children():
+            widget.destroy()
+
+        path_parts = []
+        current_display_path = self.current_path
+        
+        if platform.system() == "Windows" and len(current_display_path) >= 2 and current_display_path[1] == ':':
+            drive_root = current_display_path[:3] if len(current_display_path) >= 3 and current_display_path[2] == os.path.sep else current_display_path[:2]
+            path_parts.insert(0, drive_root)
+            remaining_path = current_display_path[len(drive_root):]
+            current_display_path = remaining_path
+        
+        while current_display_path and current_display_path != os.path.dirname(current_display_path):
+            part = os.path.basename(current_display_path)
+            if part == '': 
+                part = os.path.sep
+            path_parts.insert(0, part)
+            current_display_path = os.path.dirname(current_display_path)
+        
+        if not path_parts and self.current_path == os.path.sep:
+            path_parts = [os.path.sep]
+
+
+        accumulated_path = ""
+        for i, part in enumerate(path_parts):
+            if i == 0:
+                if platform.system() == "Windows" and len(part) >= 2 and part[1] == ':':
+                    accumulated_path = part
+                    if not accumulated_path.endswith(os.path.sep):
+                        accumulated_path += os.path.sep
+                else:
+                    accumulated_path = os.path.sep if part == os.path.sep else os.path.join(os.path.sep, part)
+            else:
+                if platform.system() == "Windows" and accumulated_path.endswith(':'): 
+                    accumulated_path = os.path.join(accumulated_path + os.path.sep, part)
+                else:
+                    accumulated_path = os.path.join(accumulated_path, part)
+            
+            btn_target_path = os.path.normpath(accumulated_path)
+            if platform.system() == "Windows" and len(btn_target_path) == 2 and btn_target_path[1] == ':':
+                btn_target_path += os.path.sep
+            elif btn_target_path == '': 
+                btn_target_path = os.path.sep
+
+            btn_text = part if part != '' else os.path.sep 
+
+            if i < len(path_parts) - 1:
+                btn = ttk.Button(self, text=btn_text, style=self.button_style)
+                btn.pack(side="left")
+                
+                btn._target_path = btn_target_path
+                btn._parent_for_menu = btn_target_path 
+
+                btn.bind("<ButtonPress-1>", self._on_button_press)
+                btn.bind("<ButtonRelease-1>", self._on_button_release)
+                btn.bind("<Motion>", self._on_button_motion)
+            else:
+                current_dir_btn = ttk.Menubutton(self, text=btn_text, direction="above", style=self.menubutton_style)
+                current_dir_btn.pack(side="left")
+                current_dir_menu = tk.Menu(current_dir_btn, tearoff=0, font=self.btn_font) 
+                current_dir_btn.config(menu=current_dir_menu)
+
+                self._populate_menu_with_subdirs(current_dir_menu, self.current_path)
+
+
+            if i < len(path_parts) - 1:
+                ttk.Label(self, text=" > ", style=self.label_style).pack(side="left")
+
+    def _trigger_navigate(self, path):
+        if self.on_navigate_callback:
+            self.on_navigate_callback(path)
+
+    def _on_button_press(self, event):
+        self._press_start_time = time.time()
+        self._press_x, self._press_y = event.x_root, event.y_root
+        self._active_button = event.widget
+        self._long_press_timer_id = self.after(self.LONG_PRESS_THRESHOLD_MS, 
+                                                lambda: self._on_long_press_timeout(self._active_button))
+
+    def _on_button_release(self, event):
+        if self._long_press_timer_id:
+            self.after_cancel(self._long_press_timer_id)
+            self._long_press_timer_id = None
+
+        if self._active_button:
+            dist = (abs(event.x_root - self._press_x)**2 + abs(event.y_root - self._press_y)**2)**0.5
+            if dist < self.DRAG_THRESHOLD_PIXELS:
+                if (time.time() - self._press_start_time) * 1000 < self.LONG_PRESS_THRESHOLD_MS:
+                    target_path = getattr(self._active_button, '_target_path', None)
+                    if target_path and self.on_navigate_callback:
+                        self.on_navigate_callback(target_path)
+            self._active_button = None
+
+    def _on_button_motion(self, event):
+        if self._active_button and self._long_press_timer_id:
+            dist = (abs(event.x_root - self._press_x)**2 + abs(event.y_root - self._press_y)**2)**0.5
+            if dist > self.DRAG_THRESHOLD_PIXELS:
+                self.after_cancel(self._long_press_timer_id)
+                self._long_press_timer_id = None
+                self._active_button = None
+
+    def _on_long_press_timeout(self, button):
+        if self._active_button is button:
+            parent_for_menu = getattr(button, '_parent_for_menu', None)
+            if parent_for_menu:
+                self._show_subdirectory_menu(button, parent_for_menu)
+            self._long_press_timer_id = None
+
+    def _populate_menu_with_subdirs(self, menu, path):
+        """
+        Helper to populate a given tk.Menu with subdirectories, handling hidden files and limits.
+        """
+        try:
+            all_entries = os.listdir(path)
+            subdirs = []
+            hidden_subdirs = []
+
+            for entry in all_entries:
+                full_path = os.path.join(path, entry)
+                if os.path.isdir(full_path):
+                    if entry.startswith('.'):
+                        hidden_subdirs.append(entry)
+                    else:
+                        subdirs.append(entry)
+
+            # Sort non-hidden and hidden separately
+            subdirs.sort()
+            hidden_subdirs.sort()
+
+            # Combine: non-hidden first, then hidden
+            sorted_subdirs = subdirs + hidden_subdirs
+            
+            # Apply menu item limit
+            if len(sorted_subdirs) > self.max_menu_items:
+                display_subdirs = sorted_subdirs[:self.max_menu_items - 1] # Make space for "Browse..."
+                remaining_count = len(sorted_subdirs) - len(display_subdirs)
+            else:
+                display_subdirs = sorted_subdirs
+                remaining_count = 0
+
+            if not display_subdirs and remaining_count == 0:
+                menu.add_command(label="(No subdirectories)", state="disabled")
+            else:
+                for subdir in display_subdirs:
+                    subdir_path = os.path.join(path, subdir)
+                    menu.add_command(label=subdir, command=lambda p=subdir_path: self._trigger_navigate(p))
+                
+                if remaining_count > 0:
+                    menu.add_separator()
+                    # Add a "Browse..." option to open a file dialog
+                    menu.add_command(label=f"Browse... ({remaining_count} more)", 
+                                     command=lambda p=path: self._browse_dialog_for_path(p))
+
+        except OSError:
+            menu.add_command(label="(Access Denied)", state="disabled")
+
+    def _browse_dialog_for_path(self, initial_path):
+        """Opens a filedialog.askdirectory and triggers navigation if a path is chosen."""
+        selected_path = filedialog.askdirectory(
+            parent=self.master,
+            initialdir=initial_path,
+            title="Select a directory"
+        )
+        if selected_path:
+            self._trigger_navigate(selected_path)
+
+    def _show_subdirectory_menu(self, button, path):
+        """
+        Creates and displays a context menu with subdirectories for long-press.
+        """
+        menu = tk.Menu(button, tearoff=0, font=self.btn_font)
+        self._populate_menu_with_subdirs(menu, path)
+        menu.post(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height())
+
+        
 class ImagePickerDialog(tk.Toplevel):
     def cache_widget(self):
         try:
@@ -561,8 +782,18 @@ class ImagePickerDialog(tk.Toplevel):
         control_frame.pack(fill="x", padx=5, pady=5)
 
         # Breadcrumb Frame
-        self.breadcrumb_frame = ttk.Frame(control_frame)
-        self.breadcrumb_frame.pack(side="left", fill="x", expand=True, padx=5)
+        self.breadcrumb_nav = BreadCrumNavigator(
+            control_frame, # Parent is the control_frame
+            on_navigate_callback=self._browse_directory, # This callback will update the grid and breadcrumbs
+            font=self.master_app.app_font, # Use the app's font
+            button_style='Breadcrumb.TButton', # Assuming these styles are defined in the main app
+            menubutton_style='Breadcrumb.TMenubutton',
+            label_style='Breadcrumb.TLabel',
+            max_menu_items=15 # Consistent with the main app's breadcrumb limit
+        )
+        self.breadcrumb_nav.pack(side="left", fill="x", expand=True, padx=5)
+        # self.breadcrumb_frame = ttk.Frame(control_frame)
+        # self.breadcrumb_frame.pack(side="left", fill="x", expand=True, padx=5)
 
         # Right side: Add and Cancel buttons (packed in reverse order for correct visual sequence)
         ttk.Button(control_frame, text="Cancel", command=self._on_closing).pack(side="right")
@@ -638,64 +869,19 @@ class ImagePickerDialog(tk.Toplevel):
         if not os.path.isdir(path):
             messagebox.showerror("Error", f"Invalid directory: {path}", parent=self)
             return
-
+        
         self.current_directory = path
-        background_worker.current_dir = path
-        self._update_breadcrumbs()
+        try: # Added try-except for background_worker in case it's not global or initialized yet
+            background_worker.current_dir = path
+        except NameError:
+            print("Warning: background_worker not found. Cannot update its current_dir.")
+            
+        # This is the key change: tell the BreadCrumNavigator to update
+        self.breadcrumb_nav.set_path(path)
+            
+        # This part remains the same to update the image grid
+        self.gallery_grid.set_size_and_path(self.thumbnail_max_size, self.current_directory)
         self.repaint()
-
-    def _update_breadcrumbs(self):
-        for widget in self.breadcrumb_frame.winfo_children():
-            widget.destroy()
-
-        path_parts = []
-        current_path = self.current_directory
-        while current_path and current_path != os.path.dirname(current_path):
-            path_parts.insert(0, os.path.basename(current_path) or current_path) # Handle root path basename being empty
-            current_path = os.path.dirname(current_path)
-        if not path_parts: # For very root paths like '/' or 'C:\'
-            path_parts = [self.current_directory] if self.current_directory else ['/']
-
-        accumulated_path = ""
-        for i, part in enumerate(path_parts):
-            if i == 0:
-                # For Windows, handle drive letters correctly
-                if platform.system() == "Windows" and self.current_directory and self.current_directory[1:3] == ':\\':
-                    accumulated_path = self.current_directory[:3]
-                else:
-                    accumulated_path = os.path.sep if part == '' else os.path.join(os.path.sep, part) # Handle root '/'
-            else:
-                accumulated_path = os.path.join(accumulated_path, part)
-            
-            # Use os.path.normpath to clean up redundant separators if any
-            display_path = os.path.normpath(accumulated_path)
-            # Special handling for root paths to display correctly, e.g. "C:\" or "/"
-            if platform.system() == "Windows" and len(display_path) == 2 and display_path[1] == ':':
-                 display_path += os.path.sep # Add backslash for drive letters C: -> C:\
-            elif display_path == '': # For Linux root /
-                display_path = os.path.sep
-
-            btn_text = part if part != '' else os.path.sep # Display '/' for root part
-            
-            if i < len(path_parts) - 1: # Not the last segment
-                btn = ttk.Button(self.breadcrumb_frame, text=btn_text, command=lambda p=display_path: self._browse_directory(p))
-                btn.pack(side="left")
-                ttk.Label(self.breadcrumb_frame, text=" > ").pack(side="left")
-            else: # Last segment (current directory)
-                current_dir_btn = ttk.Menubutton(self.breadcrumb_frame, 
-                                                 text=btn_text, 
-                                                 direction="above" )
-                current_dir_btn.pack(side="left")
-                current_dir_menu = tk.Menu(current_dir_btn, tearoff=0, font=self.master_app.app_font)
-                current_dir_btn.config(menu=current_dir_menu)
-
-                subdirs = sorted([d for d in os.listdir(self.current_directory) if os.path.isdir(os.path.join(self.current_directory, d))])
-                if subdirs:
-                    for subdir in subdirs:
-                        subdir_path = os.path.join(self.current_directory, subdir)
-                        current_dir_menu.add_command(label=subdir, command=lambda p=subdir_path: self._browse_directory(p))
-                else:
-                    current_dir_menu.add_command(label="(No subdirectories)", state="disabled")
 
     def _toggle_selection(self, img_path, button_widget):
         """Toggles the selection state of an image."""
