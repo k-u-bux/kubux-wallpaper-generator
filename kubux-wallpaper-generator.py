@@ -94,15 +94,11 @@ def get_full_size_image(img_path):
         print(f"Error loading of for {img_path}: {e}")
         return None
         
-
-# --- Caching thumbnails ---
-# GLOBAL_PIL_THUMBNAIL_CACHE = {}
-
 def get_or_make_thumbnail(img_path, thumbnail_max_size):
     cache_key = uniq_file_id(img_path, thumbnail_max_size)
 
-    # if cache_key in GLOBAL_PIL_THUMBNAIL_CACHE:
-    #     return GLOBAL_PIL_THUMBNAIL_CACHE.get(cache_key)
+    if cache_key in PIL_CACHE:
+        return PIL_CACHE[cache_key]
 
     thumbnail_size_str = str(thumbnail_max_size)
     thumbnail_cache_subdir = os.path.join(THUMBNAIL_CACHE_ROOT, thumbnail_size_str)
@@ -116,7 +112,7 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
     if  os.path.exists(cached_thumbnail_path):
         try:
             pil_image_thumbnail = Image.open(cached_thumbnail_path)
-            # GLOBAL_PIL_THUMBNAIL_CACHE[cache_key] = pil_image_thumbnail
+            PIL_CACHE[cache_key] = pil_image_thumbnail
             return pil_image_thumbnail
         except Exception as e:
             print(f"Error loading thumbnail for {img_path}: {e}")
@@ -125,7 +121,7 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
     try:
         pil_image_thumbnail = resize_image( get_full_size_image(img_path), thumbnail_max_size, thumbnail_max_size )
         pil_image_thumbnail.save(cached_thumbnail_path) 
-        # GLOBAL_PIL_THUMBNAIL_CACHE[cache_key] = pil_image_thumbnail
+        PIL_CACHE[cache_key] = pil_image_thumbnail
     except Exception as e:
         print(f"Error loading of / creating thumbnail for {img_path}: {e}")
 
