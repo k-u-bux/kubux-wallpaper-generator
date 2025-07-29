@@ -636,13 +636,18 @@ class BreadCrumNavigator(ttk.Frame):
             btn_list.insert( 0, btn );        
             
         for i, btn in enumerate( btn_list ):
-            ttk.Label(self, text=" > ").pack(side="left")
+            ttk.Label(self, text=" / ").pack(side="left")
+            if i + 1 == len( btn_list ):
+                 btn.bind("<ButtonPress-1>", self._on_button_press_menu)
             btn.pack(side="left")            
             
     def _trigger_navigate(self, path):
         if self.on_navigate_callback:
             self.on_navigate_callback(path)
 
+    def _on_button_press_menu(self, event):
+        self._show_subdirectory_menu( event.widget )
+            
     def _on_button_press(self, event):
         self._press_start_time = time.time()
         self._press_x, self._press_y = event.x_root, event.y_root
@@ -679,6 +684,7 @@ class BreadCrumNavigator(ttk.Frame):
 
     def _show_subdirectory_menu(self, button):
         path = getattr( button, 'path', None );
+        selected_path = path
         if not path is None:
             all_entries = os.listdir(path)
             subdirs = []
@@ -693,29 +699,29 @@ class BreadCrumNavigator(ttk.Frame):
             subdirs.sort()
             hidden_subdirs.sort()
             sorted_subdirs = subdirs + hidden_subdirs
-
-            # Get the button's screen coordinates
-            button_x = button.winfo_rootx()
-            button_y = button.winfo_rooty()
-            button_height = button.winfo_height()
-
-            # Calculate the position for the LongMenu to appear below the button
-            menu_x = button_x
-            menu_y = button_y + button_height
-
-            selector_dialog = LongMenu(
-                button,
-                None,
-                sorted_subdirs,
-                font=self.btn_font,
-                x_pos=menu_x,
-                y_pos=menu_y
-            )
-            selected_name = selector_dialog.result
-            if selected_name:
-                selected_path = os.path.join(path, selected_name)
-            else:
-                selected_path = path;
+            
+            if sorted_subdirs:
+                # Get the button's screen coordinates
+                button_x = button.winfo_rootx()
+                button_y = button.winfo_rooty()
+                button_height = button.winfo_height()
+                
+                # Calculate the position for the LongMenu to appear below the button
+                menu_x = button_x
+                menu_y = button_y + button_height
+                
+                selector_dialog = LongMenu(
+                    button,
+                    None,
+                    sorted_subdirs,
+                    font=self.btn_font,
+                    x_pos=menu_x,
+                    y_pos=menu_y
+                )
+                selected_name = selector_dialog.result
+                if selected_name:
+                    selected_path = os.path.join(path, selected_name)
+                    
             self._trigger_navigate(selected_path)
         else:
             print("Attribute 'path' not set on button")    
@@ -810,8 +816,8 @@ class ImagePickerDialog(tk.Toplevel):
         self.breadcrumb_nav.pack(side="left", fill="x", expand=True, padx=5)
 
         # Right side: Add and Cancel buttons (packed in reverse order for correct visual sequence)
-        ttk.Button(control_frame, text="Cancel", command=self._on_closing).pack(side="right")
-        ttk.Button(control_frame, text="Add Selected", command=self._on_add_selected).pack(side="right", padx=2)
+        ttk.Button(control_frame, text="Cancel", command=self._on_closing).pack(side="right", padx=(24,2))
+        ttk.Button(control_frame, text="Add Selected", command=self._on_add_selected).pack(side="right", padx=24)
 
     def _configure_picker_button(self, btn, img_path, tk_thumbnail):
         """Callback to configure image picker buttons."""
