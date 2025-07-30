@@ -109,6 +109,7 @@
             pythonEnv
             imagemagick
             # Additional development tools
+	    jetbrains.pycharm-community 
             python3Packages.pip
             python3Packages.black
             python3Packages.flake8
