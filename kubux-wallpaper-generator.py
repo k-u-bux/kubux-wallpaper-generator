@@ -83,7 +83,7 @@ def get_full_size_image(img_path):
         return PIL_CACHE[cache_key]
     try:
         full_image = Image.open(img_path)
-        PIL_CACHE[cache_key] = full_image;
+        PIL_CACHE[cache_key] = full_image
         if len( PIL_CACHE ) > 2000:
             PIL_CACHE.popitem(last=False)
             assert len( PIL_CACHE ) == 2000
