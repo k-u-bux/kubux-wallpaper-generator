@@ -157,6 +157,7 @@ def set_wallpaper(image_path):
         messagebox.showerror("Wallpaper Error", f"Failed to set wallpaper: {e}")
         return False
 
+
 # --- Together.ai Image Generation ---
 client = Together(api_key=TOGETHER_API_KEY)
 
@@ -189,40 +190,17 @@ def download_image(url, file_name):
         return None
 
 def unique_name(original_path, category):
-    """
-    Generates a unique filename using timestamp, category, and a random part,
-    preserving the original extension. Ensures filename is suitable for various file systems by sanitizing.
-    """
     _, ext = os.path.splitext(original_path)
-    # Using microseconds for very high uniqueness in the timestamp
     timestamp_str = datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')
-
-    # Generate a unique, random string.
-    # We use secrets.token_urlsafe(16) which produces 16 random bytes, then URL-safe Base64 encodes them.
-    # This *can* produce '/' and '+' characters, which are problematic for filenames.
     random_raw_part = secrets.token_urlsafe(18)
-
-    # --- CRITICAL FIX: Sanitize the random part to remove/replace problematic filename characters ---
-    # Replace '/' with '_' and '+' with '-' to make the string filesystem-safe.
     sanitized_random_part = random_raw_part.replace('/', '_').replace('+', '-')
-    # ------------------------------------------------------------------------------------------------
-
-    # Combine parts to form the base filename
     base_name = f"{timestamp_str}_{category}_{sanitized_random_part}"
-
-    # Return the full unique filename with the original extension
     return f"{base_name}{ext}"
 
 def get_parent_directory(path):
-    """
-    Returns the parent directory of the given path.
-    """
     return os.path.dirname(path)
 
 def list_subdirectories(parent_directory_path):
-    """
-    Lists all immediate subdirectories within a given parent directory.
-    """
     if not os.path.isdir(parent_directory_path):
         return []
 
@@ -241,6 +219,7 @@ def list_relevant_files(dir_path):
     for subdir in list_subdirectories( dir_path ):
         file_list.extend( list_image_files( subdir ) )
     return file_list;
+
 
 path_name_queue = queue.Queue()
 
