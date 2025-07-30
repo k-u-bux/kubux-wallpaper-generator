@@ -21,7 +21,7 @@ import hashlib
 import shutil
 from collections import OrderedDict
 
-BG_COLOR="#d9d9d9" # matches the bg of tk frames
+BG_COLOR="#d9d9d9" # DO NOT CHANGE (matches the bg of tk frames)
 
 # Load environment variables
 load_dotenv()
