@@ -1,25 +1,23 @@
-import os
-import time
-import queue
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from tkinter import ttk
-from tkinter import TclError
-from PIL import Image, ImageTk
-from together import Together
-from dotenv import load_dotenv
-import platform
-import uuid
-import threading
-import tkinter.font as tkFont
-import json
-import requests
-import base64
-import secrets
-from datetime import datetime
 import hashlib
-import shutil
+import json
+import os
+import platform
+import queue
+import secrets
+import threading
+import time
+import tkinter as tk
+import tkinter.font as tkFont
 from collections import OrderedDict
+from datetime import datetime
+from tkinter import TclError
+from tkinter import messagebox
+from tkinter import ttk
+
+import requests
+from PIL import Image, ImageTk
+from dotenv import load_dotenv
+from together import Together
 
 # Load environment variables
 load_dotenv()
