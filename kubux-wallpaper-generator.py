@@ -1370,40 +1370,36 @@ class WallpaperApp(tk.Tk):
         self._gallery_on_thumbnail_click(path_to_select)
 
     def add_multiple_images_as_symlinks(self, original_paths):
-           """
-           Adds multiple images to IMAGE_DIR as symlinks, ensuring unique names.
-           This method is called by the ImagePickerDialog after selection.
-           """
-           if not original_paths:
-               print("DEBUG: No files selected for symlinking. Returning.")
-               return
+        if not original_paths:
+            print("DEBUG: No files selected for symlinking. Returning.")
+            return
     
-           for i, file_path in enumerate(original_paths):
-               try:
-                   if not os.path.exists(file_path):
-                       print(f"WARNING: Original file not found, skipping: {file_path}")
-                       continue
+        for i, file_path in enumerate(original_paths):
+            try:
+                if not os.path.exists(file_path):
+                    print(f"WARNING: Original file not found, skipping: {file_path}")
+                    continue
     
-                   file_name = unique_name(file_path, "manual")
-                   dest = os.path.join(IMAGE_DIR, file_name)
+                file_name = unique_name(file_path, "manual")
+                dest = os.path.join(IMAGE_DIR, file_name)
     
-                   is_already_linked = False
-                   for existing_linked_file in os.listdir(IMAGE_DIR):
-                       full_existing_link_path = os.path.join(IMAGE_DIR, existing_linked_file)
-                       if os.path.islink(full_existing_link_path) and os.path.realpath(full_existing_link_path) == os.path.realpath(file_path):
-                           print(f"DEBUG: DUPLICATE DETECTED: {file_path} is already linked as {existing_linked_file}. Skipping.")
-                           is_already_linked = True
-                           break
-                   
-                   if is_already_linked:
-                       continue
+                is_already_linked = False
+                for existing_linked_file in os.listdir(IMAGE_DIR):
+                    full_existing_link_path = os.path.join(IMAGE_DIR, existing_linked_file)
+                    if os.path.islink(full_existing_link_path) and os.path.realpath(full_existing_link_path) == os.path.realpath(file_path):
+                        print(f"DEBUG: DUPLICATE DETECTED: {file_path} is already linked as {existing_linked_file}. Skipping.")
+                        is_already_linked = True
+                        break
+                
+                if is_already_linked:
+                    continue
     
-                   os.symlink(file_path, dest)
+                os.symlink(file_path, dest)
     
-               except Exception as e:
-                   print(f"ERROR: Failed to add image '{os.path.basename(file_path)}' due to symlink error: {type(e).__name__}: {e}")
-           
-           self.load_images()
+            except Exception as e:
+                print(f"ERROR: Failed to add image '{os.path.basename(file_path)}' due to symlink error: {type(e).__name__}: {e}")
+        
+        self.load_images()
 
     def manually_add_images(self):
         if self.dialog is None:
