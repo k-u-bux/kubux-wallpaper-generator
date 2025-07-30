@@ -216,7 +216,7 @@ def list_relevant_files(dir_path):
     file_list.extend( list_image_files( get_parent_directory( dir_path ) ) )
     for subdir in list_subdirectories( dir_path ):
         file_list.extend( list_image_files( subdir ) )
-    return file_list;
+    return file_list
 
 
 path_name_queue = queue.Queue()
@@ -311,9 +311,9 @@ class DirectoryThumbnailGrid(tk.Frame):
         self.bind("<Configure>", self._on_resize)
 
     def set_size_and_path(self, width, path=IMAGE_DIR):
-        self._directory_path = path;
-        self._item_fixed_width = width;
-        self.regrid();
+        self._directory_path = path
+        self._item_fixed_width = width
+        self.regrid()
 
     def get_button(self, img_path, width):
         cache_key = uniq_file_id(img_path, width)
@@ -606,7 +606,7 @@ class BreadCrumNavigator(ttk.Frame):
             btn.bind("<ButtonPress-1>", self._on_button_press)
             btn.bind("<ButtonRelease-1>", self._on_button_release)
             btn.bind("<Motion>", self._on_button_motion)
-            btn_list.insert( 0, btn );        
+            btn_list.insert( 0, btn )
 
         btn_text="//"
         btn = tk.Button(self, text=btn_text, font=self.btn_font)
@@ -614,7 +614,7 @@ class BreadCrumNavigator(ttk.Frame):
         btn.bind("<ButtonPress-1>", self._on_button_press)
         btn.bind("<ButtonRelease-1>", self._on_button_release)
         btn.bind("<Motion>", self._on_button_motion)
-        btn_list.insert( 0, btn );        
+        btn_list.insert( 0, btn )
 
         for i, btn in enumerate( btn_list ):
             if i > 0:
@@ -672,7 +672,7 @@ class BreadCrumNavigator(ttk.Frame):
         subdirs = []
         hidden_subdirs = []
         for entry in all_entries:
-            full_path = os.path.join( path, entry );
+            full_path = os.path.join( path, entry )
             if os.path.isdir( full_path ):
                 if entry.startswith('.'):
                     hidden_subdirs.append(entry)
@@ -1089,7 +1089,7 @@ class WallpaperApp(tk.Tk):
 
         self.scale_slider = tk.Scale(
             sliders_frame, from_=0.5, to=2.5, orient="horizontal", 
-            resolution=0.1, showvalue=0
+            resolution=0.1, showvalue=False
         )
         self.scale_slider.set(self.current_font_scale)
         self.scale_slider.config(command=self.update_ui_scale)
@@ -1099,7 +1099,7 @@ class WallpaperApp(tk.Tk):
         
         self.thumbnail_scale_slider = tk.Scale(
             sliders_frame, from_=0.5, to=2.5, orient="horizontal",
-            resolution=0.1, showvalue=0
+            resolution=0.1, showvalue=False
         )
         self.thumbnail_scale_slider.set(self.current_thumbnail_scale)
         self.thumbnail_scale_slider.config(command=self._gallery_update_thumbnail_scale_callback)
