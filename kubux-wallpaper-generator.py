@@ -136,16 +136,7 @@ def set_wallpaper(image_path):
     system = platform.system()
     try:
         abs_path = os.path.abspath(image_path)
-        if system == "Windows":
-            import ctypes
-            SPI_SETDESKWALLPAPER = 20
-            ctypes.windll.user32.SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, abs_path, 3)
-            return True
-        elif system == "Darwin":
-            script = f'tell application "Finder" to set desktop picture to POSIX file "{abs_path}"'
-            os.system(f"osascript -e '{script}'")
-            return True
-        elif system == "Linux":
+        if system == "Linux":
             os.system(f"gsettings set org.gnome.desktop.background picture-uri file://{abs_path}")
             return True
         else:
