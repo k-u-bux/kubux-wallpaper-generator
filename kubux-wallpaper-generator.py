@@ -297,7 +297,7 @@ def settle_geometry(widget):
     widget.update_idletasks()
 
 class DirectoryThumbnailGrid(tk.Frame):
-    def __init__(self, master=None, directory_path="", item_fixed_width=192, bw=None,
+    def __init__(self, master=None, directory_path="", item_fixed_width=None, bw=None,
                  button_config_callback=None, **kwargs):
         super().__init__(master, **kwargs)
 
