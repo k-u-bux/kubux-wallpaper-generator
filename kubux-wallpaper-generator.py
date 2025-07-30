@@ -522,32 +522,26 @@ class LongMenu(tk.Toplevel):
         # --- Positioning and Focus ---
         self.update_idletasks()
         self.grab_set() 
-        if x_pos is not None and y_pos is not None:
-            # Adjust if menu would go off-screen to the right
-            screen_width = self.winfo_screenwidth()
-            popup_w = self.winfo_width()
-            if x_pos + popup_w > screen_width:
-                x_pos = screen_width - popup_w - 5 # 5 pixels margin
 
-            # Adjust if menu would go off-screen downwards (or upwards if preferred)
-            screen_height = self.winfo_screenheight()
-            popup_h = self.winfo_height()
-            if y_pos + popup_h > screen_height:
-                y_pos = screen_height - popup_h - 5 # 5 pixels margin
-
-            self.geometry(f"+{int(x_pos)}+{int(y_pos)}")        # Center the window relative to its master
-        else:
+        if x_pos is None or y_pos is None:
             master_x = master.winfo_x()
             master_y = master.winfo_y()
-            master_w = master.winfo_width()
             master_h = master.winfo_height()
+            x_pos = master_x
+            y_pos = master_y + master_h
+
+        screen_width = self.winfo_screenwidth()
+        popup_w = self.winfo_width()
+        if x_pos + popup_w > screen_width:
+            x_pos = screen_width - popup_w - 5 # 5 pixels margin
             
-            popup_w = self.winfo_width()
-            popup_h = self.winfo_height()
+        # Adjust if menu would go off-screen downwards (or upwards if preferred)
+        screen_height = self.winfo_screenheight()
+        popup_h = self.winfo_height()
+        if y_pos + popup_h > screen_height:
+            y_pos = screen_height - popup_h - 5 # 5 pixels margin
             
-            x_pos = master_x + (master_w // 2) - (popup_w // 2)
-            y_pos = master_y + (master_h // 2) - (popup_h // 2)
-            self.geometry(f"+{int(x_pos)}+{int(y_pos)}")
+        self.geometry(f"+{int(x_pos)}+{int(y_pos)}")        # Center the window relative to its master
 
         self.listbox.focus_set() # Set focus to the listbox for immediate keyboard navigation
         self.wait_window(self) # Make the dialog modal until it's destroyed
@@ -703,15 +697,11 @@ class BreadCrumNavigator(ttk.Frame):
         sorted_subdirs = subdirs + hidden_subdirs
         
         if sorted_subdirs:
-            # Get the button's screen coordinates
             button_x = button.winfo_rootx()
             button_y = button.winfo_rooty()
             button_height = button.winfo_height()
-            
-            # Calculate the position for the LongMenu to appear below the button
             menu_x = button_x
             menu_y = button_y + button_height
-            
             selector_dialog = LongMenu(
                 button,
                 None,
