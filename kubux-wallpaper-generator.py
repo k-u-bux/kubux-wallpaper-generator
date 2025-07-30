@@ -21,9 +21,6 @@ import hashlib
 import shutil
 from collections import OrderedDict
 
-BG_COLOR="#d9d9d9" # DO NOT CHANGE (matches the bg of tk frames)
-# BG_COLOR="#d900ff" # DO NOT CHANGE (matches the bg of tk frames)
-
 # Load environment variables
 load_dotenv()
 # --- Configuration ---
@@ -759,7 +756,7 @@ class ImagePickerDialog(tk.Toplevel):
         self.canvas_frame = ttk.Frame(self)
         self.canvas_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self.gallery_canvas = tk.Canvas(self.canvas_frame, bg=BG_COLOR)
+        self.gallery_canvas = tk.Canvas(self.canvas_frame, bg=self.cget("background"))
         self.gallery_scrollbar = ttk.Scrollbar(self.canvas_frame, orient="vertical", command=self.gallery_canvas.yview)
         self.gallery_canvas.config(yscrollcommand=self.gallery_scrollbar.set)
         
@@ -772,7 +769,7 @@ class ImagePickerDialog(tk.Toplevel):
             item_fixed_width=self.thumbnail_max_size,
             bw = 6,
             button_config_callback=self._configure_picker_button,
-            bg=BG_COLOR
+            bg=self.cget("background")
         )
         self.gallery_canvas.create_window((0, 0), window=self.gallery_grid, anchor="nw")
 
@@ -809,14 +806,14 @@ class ImagePickerDialog(tk.Toplevel):
             relief="flat", 
             borderwidth=0,
             highlightthickness=3,
-            bg=BG_COLOR,
+            bg=self.cget("background"),
             command=lambda p=img_path: self._toggle_selection(p, btn)
         )
         
         if img_path in self.selected_files:
             btn.config(highlightbackground="blue")
         else:
-            btn.config(highlightbackground=BG_COLOR)
+            btn.config(highlightbackground=self.cget("background"))
 
     def _center_toplevel_window(self, toplevel_window):
         toplevel_window.update_idletasks()
@@ -887,7 +884,7 @@ class ImagePickerDialog(tk.Toplevel):
     def _toggle_selection(self, img_path, button_widget):
         if img_path in self.selected_files:
             del self.selected_files[img_path]
-            button_widget.config(highlightbackground=BG_COLOR)
+            button_widget.config(highlightbackground=self.cget("background"))
         else:
             self.selected_files[img_path] = True
             button_widget.config(highlightbackground="blue")
@@ -922,7 +919,7 @@ class WallpaperApp(tk.Tk):
     def __init__(self):
         super().__init__(className="kubux-wallpaper-generator")
         self.title("kubux wallpaper generator")
-        self.configure(background=BG_COLOR)
+        self.configure(background=self.cget("background"))
         self.current_image_path = None
         self.max_history_items = 125
         self.gallery_current_selection = None
@@ -1070,7 +1067,7 @@ class WallpaperApp(tk.Tk):
             item_fixed_width=self.gallery_thumbnail_max_size,
             bw=2,
             button_config_callback=self._gallery_configure_button,
-            bg=BG_COLOR
+            bg=self.cget("background")
         )
         self.gallery_canvas.create_window((0, 0), window=self.gallery_grid, anchor="nw")
         
@@ -1129,7 +1126,7 @@ class WallpaperApp(tk.Tk):
             cursor="hand2", 
             relief="flat", 
             borderwidth=0,
-            bg=BG_COLOR,
+            bg=self.cget("background"),
             command=lambda p=img_path: self._gallery_on_thumbnail_click(p)
         )
 
