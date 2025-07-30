@@ -1200,41 +1200,26 @@ class WallpaperApp(tk.Tk):
         self._gallery_scale_update_after_id = self.after(300, lambda: self._gallery_do_scale_update(float(value)))
 
     def _adjust_gallery_scroll_position(self, old_scroll_fraction):
-        # Get the bounding box of all items on the canvas to find the total content height
         bbox = self.gallery_canvas.bbox("all")
-        
-        # If there's no content or bounding box is empty, just reset to top
+
         if not bbox:
             self.gallery_canvas.yview_moveto(0.0)
             return
     
-        # Calculate the total height of the content within the scrollregion
         total_content_height = bbox[3] - bbox[1] # y2 - y1
-    
-        # Get the current visible height of the canvas
         visible_canvas_height = self.gallery_canvas.winfo_height()
-    
-        # If the content is now smaller than or fits exactly within the visible canvas,
-        # simply scroll to the very top. No need to scroll otherwise.
         if total_content_height <= visible_canvas_height:
             self.gallery_canvas.yview_moveto(0.0)
             return
-    
-        # Calculate the absolute pixel position of the old scroll, based on the *new* content height
+
         old_abs_scroll_pos = old_scroll_fraction * total_content_height
-    
-        # Determine the maximum absolute scroll position possible (end of content minus visible height)
         max_scroll_abs_pos = total_content_height - visible_canvas_height
         if max_scroll_abs_pos < 0: # Should not happen if previous check passed, but for safety
             max_scroll_abs_pos = 0
-    
-        # Ensure the new absolute scroll position doesn't exceed the end of the new content
+
         new_abs_scroll_pos = min(old_abs_scroll_pos, max_scroll_abs_pos)
-    
-        # Convert the new absolute position back to a fractional position for yview_moveto
         new_scroll_fraction = new_abs_scroll_pos / total_content_height
-    
-        # Finally, move the canvas view to the calculated new fractional position
+
         self.gallery_canvas.yview_moveto(new_scroll_fraction)
 
     def _gallery_do_scale_update(self, scale):
