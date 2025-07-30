@@ -583,7 +583,6 @@ class BreadCrumNavigator(ttk.Frame):
         else:
             self.btn_font = ("TkDefaultFont", 10, "normal") 
 
-
     def set_path(self, path):
         if not os.path.isdir(path):
             print(f"Warning: Path '{path}' is not a directory. Cannot set breadcrumbs.")
