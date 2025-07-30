@@ -117,6 +117,7 @@
           ];
           
           shellHook = ''
+	    ln -s $( which python ) python
             echo "Kubux Wallpaper Generator development environment"
             echo "Python with all dependencies available:"
             echo "  - tkinter, pillow, requests, python-dotenv"
