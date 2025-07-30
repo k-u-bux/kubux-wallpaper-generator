@@ -897,15 +897,11 @@ class ImagePickerDialog(tk.Toplevel):
         except NameError:
             print("Warning: background_worker not found. Cannot update its current_dir.")
             
-        # This is the key change: tell the BreadCrumNavigator to update
         self.breadcrumb_nav.set_path(path)
-            
-        # This part remains the same to update the image grid
         self.gallery_grid.set_size_and_path(self.thumbnail_max_size, self.current_directory)
         self.repaint()
 
     def _toggle_selection(self, img_path, button_widget):
-        """Toggles the selection state of an image."""
         if img_path in self.selected_files:
             del self.selected_files[img_path]
             button_widget.config(highlightbackground="lightgrey")
@@ -998,7 +994,6 @@ class WallpaperApp(tk.Tk):
         except Exception as e: print(f"Error saving prompt history: {e}")
 
     def load_app_settings(self):
-        """Loads application settings from a JSON file, assigning the full dictionary to self.app_settings."""
         try:
             if os.path.exists(APP_SETTINGS_FILE):
                 with open(APP_SETTINGS_FILE, 'r') as f:
@@ -1016,7 +1011,6 @@ class WallpaperApp(tk.Tk):
         self.vertical_paned_position = self.app_settings.get("vertical_paned_position", 400)
 
     def save_app_settings(self):
-        """Saves application settings to a JSON file, preserving existing keys."""
         try:
             if not hasattr(self, 'app_settings'):
                 self.app_settings = {}
