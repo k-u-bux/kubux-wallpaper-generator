@@ -106,6 +106,7 @@
         # Development shell with all dependencies for efficient testing
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
+	    python3
             pythonEnv
             imagemagick
             # Additional development tools
