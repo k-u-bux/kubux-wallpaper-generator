@@ -22,6 +22,7 @@ import shutil
 from collections import OrderedDict
 
 BG_COLOR="#d9d9d9" # DO NOT CHANGE (matches the bg of tk frames)
+# BG_COLOR="#d900ff" # DO NOT CHANGE (matches the bg of tk frames)
 
 # Load environment variables
 load_dotenv()
@@ -299,10 +300,11 @@ def settle_geometry(widget):
     widget.update_idletasks()
 
 class DirectoryThumbnailGrid(tk.Frame):
-    def __init__(self, master=None, directory_path="", item_fixed_width=192, 
+    def __init__(self, master=None, directory_path="", item_fixed_width=192, bw=None,
                  button_config_callback=None, **kwargs):
         super().__init__(master, **kwargs)
-        
+
+        self.border_width = bw
         self._directory_path = directory_path
         self._item_fixed_width = item_fixed_width
         self._button_config_callback = button_config_callback 
@@ -388,12 +390,12 @@ class DirectoryThumbnailGrid(tk.Frame):
 
     def _calculate_columns(self, frame_width):
         if frame_width <= 0: return 1
-        item_total_occupancy_width = self._item_fixed_width + (2 * 2) 
+        item_total_occupancy_width = self._item_fixed_width + (2 * self.border_width) 
         buffer_for_gutters_and_edges = 10 
         available_width_for_items = frame_width - buffer_for_gutters_and_edges
         if available_width_for_items <= 0: return 1
         calculated_cols = max(1, available_width_for_items // item_total_occupancy_width)
-        return min(calculated_cols, 10)
+        return calculated_cols
 
     def _perform_grid_layout(self):
         desired_content_cols_for_this_pass = self._calculate_columns(self.master.winfo_width())
@@ -611,9 +613,18 @@ class BreadCrumNavigator(ttk.Frame):
             btn.bind("<ButtonRelease-1>", self._on_button_release)
             btn.bind("<Motion>", self._on_button_motion)
             btn_list.insert( 0, btn );        
-            
+
+        btn_text="//"
+        btn = tk.Button(self, text=btn_text, font=self.btn_font)
+        btn.path = current_display_path
+        btn.bind("<ButtonPress-1>", self._on_button_press)
+        btn.bind("<ButtonRelease-1>", self._on_button_release)
+        btn.bind("<Motion>", self._on_button_motion)
+        btn_list.insert( 0, btn );        
+
         for i, btn in enumerate( btn_list ):
-            ttk.Label(self, text=" / ").pack(side="left")
+            if i > 0:
+                ttk.Label(self, text=" / ").pack(side="left")
             if i + 1 == len( btn_list ):
                  btn.bind("<ButtonPress-1>", self._on_button_press_menu)
             btn.pack(side="left")            
@@ -759,6 +770,7 @@ class ImagePickerDialog(tk.Toplevel):
             self.gallery_canvas, 
             directory_path=self.current_directory,
             item_fixed_width=self.thumbnail_max_size,
+            bw = 6,
             button_config_callback=self._configure_picker_button,
             bg=BG_COLOR
         )
@@ -910,6 +922,7 @@ class WallpaperApp(tk.Tk):
     def __init__(self):
         super().__init__(className="kubux-wallpaper-generator")
         self.title("kubux wallpaper generator")
+        self.configure(background=BG_COLOR)
         self.current_image_path = None
         self.max_history_items = 125
         self.gallery_current_selection = None
@@ -1055,6 +1068,7 @@ class WallpaperApp(tk.Tk):
             self.gallery_canvas, 
             directory_path=IMAGE_DIR,
             item_fixed_width=self.gallery_thumbnail_max_size,
+            bw=2,
             button_config_callback=self._gallery_configure_button,
             bg=BG_COLOR
         )
