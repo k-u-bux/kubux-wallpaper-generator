@@ -1098,14 +1098,14 @@ class WallpaperApp(tk.Tk):
         self.after(3000, background_worker.resume)
  
     def _gallery_configure_button(self, btn, img_path, tk_thumbnail):
-        """Callback to configure gallery buttons."""
         btn.config(
             cursor="hand2", 
             relief="flat", 
             borderwidth=0,
             bg=self.cget("background"),
-            command=lambda p=img_path: self._gallery_on_thumbnail_click(p)
+            command=lambda dummy=None: self._gallery_on_thumbnail_click(img_path)
         )
+        # btn.bind("<Button-3>", lambda dummy: self._gallery_on_thumbnail_click(img_path))
 
     def set_initial_pane_positions(self):
         try:
