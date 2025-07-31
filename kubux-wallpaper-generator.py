@@ -693,14 +693,14 @@ class BreadCrumNavigator(ttk.Frame):
 
         
 class ImagePickerDialog(tk.Toplevel):
-    def cache_widget(self):
+    def _cache_widget(self):
         try:
             path_name = path_name_queue.get_nowait()
             self.gallery_grid._get_button(path_name, self.thumbnail_max_size)
             # print(f"created button for {path_name} at size {self.thumbnail_max_size}")
         except queue.Empty:
             pass
-        self.after(50, self.cache_widget)
+        self.after(50, self._cache_widget)
         
     def __init__(self, master, thumbnail_max_size, image_dir_path):
         super().__init__(master)
@@ -716,7 +716,7 @@ class ImagePickerDialog(tk.Toplevel):
 
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
-        self.after(0, self.cache_widget)
+        self.after(0, self._cache_widget)
 
     def hide(self):
         self.grab_release()
