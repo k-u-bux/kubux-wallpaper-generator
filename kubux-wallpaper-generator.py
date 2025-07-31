@@ -23,9 +23,8 @@ from together import Together
 load_dotenv()
 # --- Configuration ---
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
-if not TOGETHER_API_KEY:
-    messagebox.showerror("API Key Error", "TOGETHER_API_KEY not found in .env file or environment variables.")
-    exit()
+ai_features_enabled = bool(TOGETHER_API_KEY)
+
 
 SUPPORTED_IMAGE_EXTENSIONS = (
     '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tif', '.tiff', '.webp',
@@ -269,10 +268,54 @@ def set_wallpaper(image_path):
         return False
     
 
+# --- dialogue box ---
+def custom_message_dialog(parent, title, message, font=("Arial", 12)):
+    dialog = tk.Toplevel(parent)
+    dialog.title(title)
+    dialog.transient(parent)  # Set to be on top of the parent window
+    dialog.grab_set()  # Modal: user must interact with this window
+    
+    # Calculate position to center the dialog on parent
+    x = parent.winfo_rootx() + parent.winfo_width() // 2 - 200
+    y = parent.winfo_rooty() + parent.winfo_height() // 2 - 100
+    dialog.geometry(f"400x300+{x}+{y}")
+    
+    # Message area
+    msg_frame = ttk.Frame(dialog, padding=20)
+    msg_frame.pack(fill=tk.BOTH, expand=True)
+    
+    # Text widget with scrollbar for the message
+    text_widget = tk.Text(msg_frame, wrap=tk.WORD, font=font, 
+                          highlightthickness=0, borderwidth=0)
+    scrollbar = ttk.Scrollbar(msg_frame, orient="vertical", 
+                              command=text_widget.yview)
+    text_widget.configure(yscrollcommand=scrollbar.set)
+    
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    
+    # Insert the message text
+    text_widget.insert(tk.END, message)
+    text_widget.configure(state="disabled")  # Make read-only
+    
+    # OK button
+    button_frame = ttk.Frame(dialog, padding=10)
+    button_frame.pack(fill=tk.X)
+    ok_button = ttk.Button(button_frame, text="OK", 
+                          command=dialog.destroy, width=10)
+    ok_button.pack(side=tk.RIGHT, padx=5)
+    
+    # Center dialog on screen
+    dialog.update_idletasks()
+    
+    # Set focus and wait for window to close
+    ok_button.focus_set()
+    dialog.wait_window()
+
 # --- Together.ai Image Generation ---
-client = Together(api_key=TOGETHER_API_KEY)
 
 def generate_image(prompt, model="black-forest-labs/FLUX.1-pro", width=1184, height=736, steps=28):
+    client = Together(api_key=TOGETHER_API_KEY)
     try:
         response = client.images.generate(
             prompt=prompt,
@@ -1138,7 +1181,8 @@ class WallpaperApp(tk.Tk):
         self.generated_image_label.pack(fill="both", expand=True, padx=5, pady=5)
 
         prompt_frame_outer = ttk.LabelFrame(self.vertical_paned, text="Generate New Wallpaper")
-        self.vertical_paned.add(prompt_frame_outer, weight=0)
+        if ai_features_enabled:
+            self.vertical_paned.add(prompt_frame_outer, weight=0)
 
         prompt_frame_inner = tk.Frame(prompt_frame_outer)
         prompt_frame_inner.pack(fill="both", expand=True, padx=5, pady=5)
@@ -1177,6 +1221,19 @@ class WallpaperApp(tk.Tk):
         self.generate_button.pack(side="left", padx=(2,24))
         self.history_button = ttk.Button(generate_btn_frame, text="History", command=self._show_prompt_history)
         self.history_button.pack(side="left")
+
+        if not ai_features_enabled:
+            # Disable AI-dependent UI elements
+            self.generate_button.configure(state="disabled")
+            self.history_button.configure(state="disabled")
+            
+            # Add an informational button in their place
+            self.enable_ai_button = ttk.Button(
+                generate_btn_frame, 
+                text="Enable AI Generation",
+                command=self.show_api_setup_instructions
+            )
+            self.enable_ai_button.pack(side="left", padx=(24,0))
 
         sliders_frame = tk.Frame(controls_frame)
         sliders_frame.grid(row=0, column=2)
@@ -1222,6 +1279,20 @@ class WallpaperApp(tk.Tk):
         )
         # btn.bind("<Button-3>", lambda dummy: self._gallery_on_thumbnail_click(img_path))
 
+    def show_api_setup_instructions(self):
+        instructions = """
+        To enable AI image generation:
+        
+        1. Create a Together.ai account at https://together.ai
+        2. Generate an API key from your account settings
+        3. Create a .env file in the application directory with:
+        TOGETHER_API_KEY=your_api_key_here
+        
+        Then restart the application to access all features.
+        """
+        custom_message_dialog(self, "Enable AI Image Generation", 
+                              instructions, font=self.app_font)    
+            
     def _set_initial_pane_positions(self):
         try:
             self.paned_window.sashpos(0, self.horizontal_paned_position)
