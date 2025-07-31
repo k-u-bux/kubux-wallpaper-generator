@@ -2,8 +2,8 @@ import hashlib
 import json
 import os
 import platform
-import queue
 import secrets
+import queue
 import threading
 import time
 import tkinter as tk
@@ -138,20 +138,136 @@ def make_tk_image( pil_image ):
 
 
 # --- Wallpaper Setting Functions (Platform-Specific) ---
+#def set_wallpaper(image_path):
+#    system = platform.system()
+#    try:
+#        abs_path = os.path.abspath(image_path)
+#        if system == "Linux":
+#            os.system(f"gsettings set org.gnome.desktop.background picture-uri file://{abs_path}")
+#            return True
+#        else:
+#            messagebox.showwarning("Unsupported OS", f"Wallpaper setting not supported on {system}.")
+#            return False
+#    except Exception as e:
+#        messagebox.showerror("Wallpaper Error", f"Failed to set wallpaper: {e}")
+#        return False
+
 def set_wallpaper(image_path):
-    system = platform.system()
+    """
+    Set the wallpaper on Linux systems with support for multiple desktop environments.
+    
+    Args:
+        image_path: Path to the image file
+        
+    Returns:
+        bool: True if wallpaper was successfully set, False otherwise
+    """
+    if platform.system() != "Linux":
+        messagebox.showwarning("Unsupported OS", f"Wallpaper setting not supported on {platform.system()}.")
+        return False
+        
     try:
         abs_path = os.path.abspath(image_path)
-        if system == "Linux":
-            os.system(f"gsettings set org.gnome.desktop.background picture-uri file://{abs_path}")
+        file_uri = f"file://{abs_path}"
+        
+        # Detect desktop environment
+        desktop_env = os.environ.get('XDG_CURRENT_DESKTOP', '').lower()
+        if not desktop_env and os.environ.get('DESKTOP_SESSION'):
+            desktop_env = os.environ.get('DESKTOP_SESSION').lower()
+            
+        success = False
+        
+        # GNOME, Unity, Pantheon, Budgie
+        if any(de in desktop_env for de in ['gnome', 'unity', 'pantheon', 'budgie']):
+            # Try GNOME 3 approach first (newer versions)
+            os.system(f"gsettings set org.gnome.desktop.background picture-uri '{file_uri}'")
+            # For GNOME 40+ with dark mode support
+            os.system(f"gsettings set org.gnome.desktop.background picture-uri-dark '{file_uri}'")
+            success = True
+            
+        # KDE Plasma
+        elif 'kde' in desktop_env:
+            # For KDE Plasma 5
+            script = f"""
+            var allDesktops = desktops();
+            for (var i=0; i < allDesktops.length; i++) {{
+                d = allDesktops[i];
+                d.wallpaperPlugin = "org.kde.image";
+                d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
+                d.writeConfig("Image", "{abs_path}");
+            }}
+            """
+            os.system(f"qdbus org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript '{script}'")
+            success = True
+            
+        # XFCE
+        elif 'xfce' in desktop_env:
+            # Get the current monitor
+            try:
+                import subprocess
+                props = subprocess.check_output(['xfconf-query', '-c', 'xfce4-desktop', '-p', '/backdrop', '-l']).decode('utf-8')
+                monitors = set([p.split('/')[2] for p in props.splitlines() if p.endswith('last-image')])
+                
+                for monitor in monitors:
+                    # Find all properties for this monitor
+                    monitor_props = [p for p in props.splitlines() if f'/backdrop/screen0/{monitor}/' in p and p.endswith('last-image')]
+                    for prop in monitor_props:
+                        os.system(f"xfconf-query -c xfce4-desktop -p {prop} -s {abs_path}")
+                success = True
+            except:
+                # Fallback for older XFCE
+                os.system(f"xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s {abs_path}")
+                success = True
+                
+        # Cinnamon
+        elif 'cinnamon' in desktop_env:
+            os.system(f"gsettings set org.cinnamon.desktop.background picture-uri '{file_uri}'")
+            success = True
+            
+        # MATE
+        elif 'mate' in desktop_env:
+            os.system(f"gsettings set org.mate.background picture-filename '{abs_path}'")
+            success = True
+            
+        # LXQt, LXDE
+        elif 'lxqt' in desktop_env or 'lxde' in desktop_env:
+            # For PCManFM-Qt
+            os.system(f"pcmanfm-qt --set-wallpaper={abs_path}")
+            # For PCManFM
+            os.system(f"pcmanfm --set-wallpaper={abs_path}")
+            success = True
+            
+        # i3wm, sway and other tiling window managers often use feh
+        elif any(de in desktop_env for de in ['i3', 'sway']):
+            os.system(f"feh --bg-fill '{abs_path}'")
+            success = True
+            
+        # Fallback method using feh (works for many minimal window managers)
+        elif not success:
+            # Try generic methods
+            methods = [
+                f"feh --bg-fill '{abs_path}'",
+                f"nitrogen --set-scaled '{abs_path}'",
+                f"gsettings set org.gnome.desktop.background picture-uri '{file_uri}'"
+            ]
+            
+            for method in methods:
+                exit_code = os.system(method)
+                if exit_code == 0:
+                    success = True
+                    break
+                    
+        if success:
             return True
         else:
-            messagebox.showwarning("Unsupported OS", f"Wallpaper setting not supported on {system}.")
+            messagebox.showinfo("Desktop Environment Not Detected", 
+                               f"Couldn't detect your desktop environment ({desktop_env}). Try installing 'feh' package and retry.")
             return False
+            
     except Exception as e:
         messagebox.showerror("Wallpaper Error", f"Failed to set wallpaper: {e}")
         return False
-
+    
 
 # --- Together.ai Image Generation ---
 client = Together(api_key=TOGETHER_API_KEY)
