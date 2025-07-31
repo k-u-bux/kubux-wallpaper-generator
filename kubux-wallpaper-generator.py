@@ -27,6 +27,12 @@ if not TOGETHER_API_KEY:
     messagebox.showerror("API Key Error", "TOGETHER_API_KEY not found in .env file or environment variables.")
     exit()
 
+SUPPORTED_IMAGE_EXTENSIONS = (
+    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tif', '.tiff', '.webp',
+    '.ico', '.icns', '.avif', '.dds', '.msp', '.pcx', '.ppm',
+    '.pbm', '.pgm', '.sgi', '.tga', '.xbm', '.xpm'
+)
+    
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, ".config", "kubux-wallpaper-generator")
 CACHE_DIR = os.path.join(HOME_DIR, ".cache", "kubux-wallpaper-generator")
@@ -265,12 +271,6 @@ def list_image_files(directory_path):
 
     image_files = []
 
-    SUPPORTED_IMAGE_EXTENSIONS = (
-        '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tif', '.tiff', '.webp',
-        '.ico', '.icns', '.avif', '.dds', '.msp', '.pcx', '.ppm',
-        '.pbm', '.pgm', '.sgi', '.tga', '.xbm', '.xpm'
-    )
-
     for filename in os.listdir(directory_path):
         f_path = os.path.join(directory_path, filename)
         # Check if it's a file and its lowercase extension is in our supported list
@@ -320,7 +320,7 @@ class DirectoryThumbnailGrid(tk.Frame):
             self._button_config_callback(target_btn, img_path, tk_image)
             self._widget_cache.move_to_end(cache_key)
             
-        return (target_btn, tk_image)
+        return target_btn, tk_image
             
     def regrid(self):
         new_image_paths_from_disk = list_image_files(self._directory_path)
@@ -732,7 +732,7 @@ class ImagePickerDialog(tk.Toplevel):
         self.deiconify()
         self._load_geometry()
         self.title("Add Images to Collection")
-        self.transient(self.master)
+        self.transient(self._master)
         self.grab_set()
         self._browse_directory(self._current_image_dir)
         self._gallery_canvas.yview_moveto(0.0)
@@ -906,26 +906,26 @@ class WallpaperApp(tk.Tk):
         self._ui_scale_job = None
         self._initial_load_done = False
 
-        self.load_prompt_history()
+        self._load_prompt_history()
         self.load_app_settings()
         self.gallery_thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * self.current_thumbnail_scale)
         self.base_font_size = 12
         self.app_font = tkFont.Font(family="TkDefaultFont", size=int(self.base_font_size * self.current_font_scale))
         self.geometry(self.initial_geometry)
         
-        self.create_widgets()
+        self._create_widgets()
         
         self.update_idletasks()
-        self.set_initial_pane_positions()
+        self._set_initial_pane_positions()
         
         self.gallery_canvas.bind("<Configure>", self._gallery_on_canvas_configure)
-        self.image_display_frame.bind("<Configure>", self.on_image_display_frame_resize)
-        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.display_frame.bind("<Configure>", self._on_display_frame_resize)
+        self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
         self.update_idletasks()
         self.dialog = None
 
-    def image_dir(self):
+    def _image_dir(self):
         if hasattr(self, 'app_settings'):
             saved_dir = self.app_settings.get('image_picker_last_directory')
             if saved_dir and os.path.isdir(saved_dir):
@@ -934,10 +934,9 @@ class WallpaperApp(tk.Tk):
         default_dir = os.path.expanduser(os.path.join('~', 'Pictures'))
         if not os.path.isdir(default_dir):
             default_dir = os.path.expanduser('~')
-        # print(f"image_dir = {default_dir}")
         return default_dir
         
-    def load_prompt_history(self):
+    def _load_prompt_history(self):
         try:
             if os.path.exists(PROMPT_HISTORY_FILE):
                 with open(PROMPT_HISTORY_FILE, 'r') as f:
@@ -945,7 +944,7 @@ class WallpaperApp(tk.Tk):
             else: self.prompt_history = [] 
         except (json.JSONDecodeError, Exception): self.prompt_history = []
 
-    def save_prompt_history(self):
+    def _save_prompt_history(self):
         try:
             with open(PROMPT_HISTORY_FILE, 'w') as f:
                 json.dump(self.prompt_history, f, indent=4) 
@@ -987,13 +986,13 @@ class WallpaperApp(tk.Tk):
         except Exception as e:
             print(f"Error saving app settings: {e}")
 
-    def on_closing(self):
+    def _on_closing(self):
         background_worker.stop()
-        self.save_prompt_history()
-        self.save_app_settings() 
+        self._save_prompt_history()
+        self.save_app_settings()
         self.destroy() 
 
-    def create_widgets(self):
+    def _create_widgets(self):
         self.style = ttk.Style()
         self.style.configure('.', font=self.app_font)
 
@@ -1016,10 +1015,10 @@ class WallpaperApp(tk.Tk):
         self.vertical_paned = ttk.PanedWindow(left_pane, orient="vertical")
         self.vertical_paned.pack(fill="both", expand=True)
 
-        self.image_display_frame = ttk.LabelFrame(self.vertical_paned, text="Preview")
-        self.vertical_paned.add(self.image_display_frame, weight=1)
+        self.display_frame = ttk.LabelFrame(self.vertical_paned, text="Preview")
+        self.vertical_paned.add(self.display_frame, weight=1)
 
-        self.generated_image_label = ttk.Label(self.image_display_frame, anchor="center")
+        self.generated_image_label = ttk.Label(self.display_frame, anchor="center")
         self.generated_image_label.pack(fill="both", expand=True, padx=5, pady=5)
 
         prompt_frame_outer = ttk.LabelFrame(self.vertical_paned, text="Generate New Wallpaper")
@@ -1030,7 +1029,7 @@ class WallpaperApp(tk.Tk):
         
         self.prompt_text_widget = tk.Text(prompt_frame_inner, height=6, wrap="word", relief="sunken", borderwidth=2, font=self.app_font)
         self.prompt_text_widget.pack(fill="both", expand=True)
-        self.prompt_text_widget.bind("<Return>", lambda event: self.on_generate_button_click())
+        self.prompt_text_widget.bind("<Return>", lambda event: self._on_generate_button_click())
 
         self.gallery_canvas = tk.Canvas(thumbnail_frame_outer)
         self.gallery_scrollbar = ttk.Scrollbar(thumbnail_frame_outer, orient="vertical", command=self.gallery_canvas.yview)
@@ -1058,7 +1057,7 @@ class WallpaperApp(tk.Tk):
 
         generate_btn_frame = tk.Frame(controls_frame)
         generate_btn_frame.grid(row=0, column=0, sticky="w")
-        self.generate_button = ttk.Button(generate_btn_frame, text="Generate", command=self.on_generate_button_click)
+        self.generate_button = ttk.Button(generate_btn_frame, text="Generate", command=self._on_generate_button_click)
         self.generate_button.pack(side="left", padx=(2,24))
         self.history_button = ttk.Button(generate_btn_frame, text="History", command=self._show_prompt_history)
         self.history_button.pack(side="left")
@@ -1072,7 +1071,7 @@ class WallpaperApp(tk.Tk):
             resolution=0.1, showvalue=False
         )
         self.scale_slider.set(self.current_font_scale)
-        self.scale_slider.config(command=self.update_ui_scale)
+        self.scale_slider.config(command=self._update_ui_scale)
         self.scale_slider.pack(side="left")
         
         ttk.Label(sliders_frame, text="Thumb Size:", padding="20 0 0 0").pack(side="left")
@@ -1087,11 +1086,11 @@ class WallpaperApp(tk.Tk):
 
         action_btn_frame = tk.Frame(controls_frame)
         action_btn_frame.grid(row=0, column=4, sticky="e")
-        ttk.Button(action_btn_frame, text="Delete", command=self.delete_selected_image).pack(side="left", padx=24)
-        ttk.Button(action_btn_frame, text="Add", command=self.manually_add_images).pack(side="left", padx=24)
-        ttk.Button(action_btn_frame, text="Set Wallpaper", command=self.set_current_as_wallpaper).pack(side="left", padx=(24,2))
+        ttk.Button(action_btn_frame, text="Delete", command=self._delete_selected_image).pack(side="left", padx=24)
+        ttk.Button(action_btn_frame, text="Add", command=self._manually_add_images).pack(side="left", padx=24)
+        ttk.Button(action_btn_frame, text="Set Wallpaper", command=self._set_current_as_wallpaper).pack(side="left", padx=(24, 2))
 
-        users_images = self.image_dir()
+        users_images = self._image_dir()
         self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, users_images)
         background_worker.run(users_images, self.gallery_thumbnail_max_size)
         background_worker.pause()
@@ -1107,14 +1106,14 @@ class WallpaperApp(tk.Tk):
         )
         # btn.bind("<Button-3>", lambda dummy: self._gallery_on_thumbnail_click(img_path))
 
-    def set_initial_pane_positions(self):
+    def _set_initial_pane_positions(self):
         try:
             self.paned_window.sashpos(0, self.horizontal_paned_position)
             self.vertical_paned.sashpos(0, self.vertical_paned_position)
         except (tk.TclError, IndexError): 
             pass
 
-    def update_ui_scale(self, value):
+    def _update_ui_scale(self, value):
         if self._ui_scale_job: self.after_cancel(self._ui_scale_job)
         self._ui_scale_job = self.after(400, lambda: self._do_update_ui_scale(float(value)))
 
@@ -1128,13 +1127,13 @@ class WallpaperApp(tk.Tk):
             except tk.TclError: pass
             for child in widget.winfo_children(): update_widget_fonts(child, font)
         update_widget_fonts(self, self.app_font)
-        if self.current_image_path: self.display_image(self.current_image_path)
+        if self.current_image_path: self._display_image(self.current_image_path)
     
-    def on_image_display_frame_resize(self, event):
+    def _on_display_frame_resize(self, event):
         if self.current_image_path and event.width > 1 and event.height > 1:
-            self.display_image(self.current_image_path)
+            self._display_image(self.current_image_path)
 
-    def display_image(self, image_path):
+    def _display_image(self, image_path):
         try:
             full_img = get_full_size_image(image_path)
             fw, fh = self.generated_image_label.winfo_width(), self.generated_image_label.winfo_height()
@@ -1149,7 +1148,7 @@ class WallpaperApp(tk.Tk):
             self.current_image_path = None
     
     # --- Gallery Methods ---
-    def load_images(self):
+    def _load_images(self):
         background_worker.pause()
         self.gallery_grid.regrid()
         background_worker.resume()
@@ -1194,7 +1193,7 @@ class WallpaperApp(tk.Tk):
 
     def _gallery_on_canvas_configure(self, event):
         if not self._initial_load_done and event.width > 1:
-            self.load_images()
+            self._load_images()
             self._initial_load_done = True
             
         if self._gallery_resize_job: 
@@ -1210,7 +1209,7 @@ class WallpaperApp(tk.Tk):
     def _gallery_on_thumbnail_click(self, image_path):
         old_selection = self.gallery_current_selection
         self.gallery_current_selection = image_path
-        self.display_image(image_path)
+        self._display_image(image_path)
     
     def _gallery_bind_mousewheel(self, widget):
         widget.bind("<MouseWheel>", self._gallery_on_mousewheel, add="+")
@@ -1236,11 +1235,11 @@ class WallpaperApp(tk.Tk):
         return 'break'
 
     # --- Core App Actions ---
-    def add_prompt_to_history(self, prompt):
+    def _add_prompt_to_history(self, prompt):
         if prompt in self.prompt_history: self.prompt_history.remove(prompt) 
         self.prompt_history.insert(0, prompt)
         self.prompt_history = self.prompt_history[:self.max_history_items]
-        self.save_prompt_history()
+        self._save_prompt_history()
     
     def _center_toplevel_window(self, toplevel_window):
         toplevel_window.update_idletasks() 
@@ -1293,10 +1292,10 @@ class WallpaperApp(tk.Tk):
 
         self._center_toplevel_window(history_window)
 
-    def on_generate_button_click(self):
+    def _on_generate_button_click(self):
         prompt = self.prompt_text_widget.get("1.0", tk.END).strip()
         if not prompt: return messagebox.showwarning("Input Error", "Please enter a prompt.")
-        self.add_prompt_to_history(prompt)
+        self._add_prompt_to_history(prompt)
         self.generate_button.config(text="Generating...", state="disabled")
         threading.Thread(target=self._run_generation_task, args=(prompt,), daemon=True).start()
 
@@ -1306,11 +1305,11 @@ class WallpaperApp(tk.Tk):
             file_name = unique_name("dummy.png","generated")
             save_path = download_image(image_url, file_name)
             if save_path:
-                self.after(0, self.load_images_and_select, save_path)
+                self.after(0, self._load_images_and_select, save_path)
         self.after(0, self.generate_button.config, {'text':"Generate", 'state':"normal"})
 
-    def load_images_and_select(self, path_to_select):
-        self.load_images()
+    def _load_images_and_select(self, path_to_select):
+        self._load_images()
         self._gallery_on_thumbnail_click(path_to_select)
 
     def add_multiple_images_as_symlinks(self, original_paths):
@@ -1343,14 +1342,14 @@ class WallpaperApp(tk.Tk):
             except Exception as e:
                 print(f"ERROR: Failed to add image '{os.path.basename(file_path)}' due to symlink error: {type(e).__name__}: {e}")
         
-        self.load_images()
+        self._load_images()
 
-    def manually_add_images(self):
+    def _manually_add_images(self):
         if self.dialog is None:
-            self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, self.image_dir())
+            self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, self._image_dir())
         self.dialog.show(self.gallery_thumbnail_max_size)
 
-    def delete_selected_image(self):
+    def _delete_selected_image(self):
         path_to_delete = self.gallery_current_selection
         if path_to_delete and os.path.exists(path_to_delete):
             try:
@@ -1359,10 +1358,10 @@ class WallpaperApp(tk.Tk):
                 self.generated_image_label.image = None
                 self.current_image_path = None
                 self.gallery_current_selection = None
-                self.load_images()
+                self._load_images()
             except Exception as e: messagebox.showerror("Deletion Error", f"Failed to delete {e}")
 
-    def set_current_as_wallpaper(self):
+    def _set_current_as_wallpaper(self):
         if not self.current_image_path: return messagebox.showwarning("Wallpaper Error", "No image selected.")
         set_wallpaper(self.current_image_path)
 
