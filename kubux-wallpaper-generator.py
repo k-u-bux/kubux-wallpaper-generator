@@ -137,19 +137,6 @@ def make_tk_image( pil_image ):
 
 
 # --- Wallpaper Setting Functions (Platform-Specific) ---
-#def set_wallpaper(image_path):
-#    system = platform.system()
-#    try:
-#        abs_path = os.path.abspath(image_path)
-#        if system == "Linux":
-#            os.system(f"gsettings set org.gnome.desktop.background picture-uri file://{abs_path}")
-#            return True
-#        else:
-#            messagebox.showwarning("Unsupported OS", f"Wallpaper setting not supported on {system}.")
-#            return False
-#    except Exception as e:
-#        messagebox.showerror("Wallpaper Error", f"Failed to set wallpaper: {e}")
-#        return False
 
 def set_wallpaper(image_path):
     """
