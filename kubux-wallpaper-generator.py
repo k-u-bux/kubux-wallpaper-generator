@@ -306,13 +306,13 @@ class DirectoryThumbnailGrid(tk.Frame):
         self._item_fixed_width = width
         self.regrid()
 
-    def get_button(self, img_path, width):
+    def _get_button(self, img_path, width):
         cache_key = uniq_file_id(img_path, width)
         target_btn, tk_image = self._known_widgets.get(cache_key, (None, None)) 
         
         if target_btn is None:
             target_btn = tk.Button(self)
-            tk_image_ref = self._configure_thumbnail_button_internal(target_btn, img_path)
+            tk_image_ref = self._configure_button(target_btn, img_path)
             assert not tk_image_ref is None
             self._known_widgets[cache_key] = (target_btn, tk_image_ref)
         else:
@@ -336,10 +336,10 @@ class DirectoryThumbnailGrid(tk.Frame):
 
         # Create/reuse and configure buttons for the new set of image paths
         for img_path in new_image_paths_from_disk:
-            target_btn, tk_image = self.get_button(img_path, self._item_fixed_width)
+            target_btn, tk_image = self._get_button(img_path, self._item_fixed_width)
             self._active_widgets[img_path] = (target_btn, tk_image)
             
-        self._perform_grid_layout() 
+        self._layout_the_grid()
 
     def _on_resize(self, event=None):
         self.update_idletasks()
@@ -372,7 +372,7 @@ class DirectoryThumbnailGrid(tk.Frame):
             actual_tk_content_cols = actual_tk_total_cols
 
         if desired_content_cols_for_width != actual_tk_content_cols:
-            self._perform_grid_layout() 
+            self._layout_the_grid()
 
     def _calculate_columns(self, frame_width):
         if frame_width <= 0: return 1
@@ -383,7 +383,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         calculated_cols = max(1, available_width_for_items // item_total_occupancy_width)
         return calculated_cols
 
-    def _perform_grid_layout(self):
+    def _layout_the_grid(self):
         desired_content_cols_for_this_pass = self._calculate_columns(self.master.winfo_width())
         if desired_content_cols_for_this_pass == 0:
             desired_content_cols_for_this_pass = 1 
@@ -415,7 +415,7 @@ class DirectoryThumbnailGrid(tk.Frame):
         while len( self._known_widgets ) > self._cache_size:
             self._known_widgets.popitem(last=False)
         
-    def _configure_thumbnail_button_internal(self, btn, img_path):
+    def _configure_button(self, btn, img_path):
         thumbnail_pil = get_or_make_thumbnail(img_path, self._item_fixed_width)
         tk_thumbnail = None
         if thumbnail_pil:
@@ -698,7 +698,7 @@ class ImagePickerDialog(tk.Toplevel):
     def cache_widget(self):
         try:
             path_name = path_name_queue.get_nowait()
-            self.gallery_grid.get_button(path_name, self.thumbnail_max_size)
+            self.gallery_grid._get_button(path_name, self.thumbnail_max_size)
             # print(f"created button for {path_name} at size {self.thumbnail_max_size}")
         except queue.Empty:
             pass
