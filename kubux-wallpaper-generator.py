@@ -794,12 +794,12 @@ class ImagePickerDialog(tk.Toplevel):
             highlightthickness=3,
             bg=self.cget("background"),
             command=lambda p=img_path: self._toggle_selection(p, btn)
-        )
+         )
         
-        if img_path in self.selected_files:
-            btn.config(highlightbackground="blue")
-        else:
-            btn.config(highlightbackground=self.cget("background"))
+         if img_path in self.selected_files:
+             btn.config(highlightbackground="blue")
+         else:
+             btn.config(highlightbackground=self.cget("background"))
 
     def _center_toplevel_window(self, toplevel_window):
         toplevel_window.update_idletasks()
