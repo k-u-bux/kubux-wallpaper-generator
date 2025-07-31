@@ -544,16 +544,14 @@ class LongMenu(tk.Toplevel):
         
 class BreadCrumNavigator(ttk.Frame):
     def __init__(self, master, on_navigate_callback=None, font=None,
-                 long_press_threshold_ms=400, drag_threshold_pixels=5,
-                 max_menu_items=25):
+                 long_press_threshold_ms=400, drag_threshold_pixels=5):
         
         super().__init__(master)
-        self.on_navigate_callback = on_navigate_callback
-        self.current_path = "" 
+        self._on_navigate_callback = on_navigate_callback
+        self._current_path = ""
 
-        self.LONG_PRESS_THRESHOLD_MS = long_press_threshold_ms
-        self.DRAG_THRESHOLD_PIXELS = drag_threshold_pixels
-        self.max_menu_items = max_menu_items
+        self._LONG_PRESS_THRESHOLD_MS = long_press_threshold_ms
+        self._DRAG_THRESHOLD_PIXELS = drag_threshold_pixels
 
         self._long_press_timer_id = None
         self._press_start_time = 0
@@ -577,7 +575,7 @@ class BreadCrumNavigator(ttk.Frame):
             print(f"Warning: Path '{path}' is not a directory. Cannot set breadcrumbs.")
             return
 
-        self.current_path = os.path.normpath(path)
+        self._current_path = os.path.normpath(path)
         self._update_breadcrumbs()
 
     def _update_breadcrumbs(self):
@@ -585,7 +583,7 @@ class BreadCrumNavigator(ttk.Frame):
             widget.destroy()
 
         btn_list = []
-        current_display_path = self.current_path
+        current_display_path = self._current_path
         while len(current_display_path) > 1: 
             path = current_display_path
             current_display_path = os.path.dirname(path)
@@ -615,8 +613,8 @@ class BreadCrumNavigator(ttk.Frame):
             btn.pack(side="left")            
             
     def _trigger_navigate(self, path):
-        if self.on_navigate_callback:
-            self.on_navigate_callback(path)
+        if self._on_navigate_callback:
+            self._on_navigate_callback(path)
 
     def _on_button_press_menu(self, event):
         self._show_subdirectory_menu( event.widget )
@@ -625,8 +623,8 @@ class BreadCrumNavigator(ttk.Frame):
         self._press_start_time = time.time()
         self._press_x, self._press_y = event.x_root, event.y_root
         self._active_button = event.widget
-        self._long_press_timer_id = self.after(self.LONG_PRESS_THRESHOLD_MS, 
-                                                lambda: self._on_long_press_timeout(self._active_button))
+        self._long_press_timer_id = self.after(self._LONG_PRESS_THRESHOLD_MS,
+                                               lambda: self._on_long_press_timeout(self._active_button))
 
     def _on_button_release(self, event):
         if self._long_press_timer_id:
@@ -635,17 +633,17 @@ class BreadCrumNavigator(ttk.Frame):
 
         if self._active_button:
             dist = (abs(event.x_root - self._press_x)**2 + abs(event.y_root - self._press_y)**2)**0.5
-            if dist < self.DRAG_THRESHOLD_PIXELS:
-                if (time.time() - self._press_start_time) * 1000 < self.LONG_PRESS_THRESHOLD_MS:
+            if dist < self._DRAG_THRESHOLD_PIXELS:
+                if (time.time() - self._press_start_time) * 1000 < self._LONG_PRESS_THRESHOLD_MS:
                     path = self._active_button.path
-                    if path and self.on_navigate_callback:
-                        self.on_navigate_callback(path)
+                    if path and self._on_navigate_callback:
+                        self._on_navigate_callback(path)
             self._active_button = None
 
     def _on_button_motion(self, event):
         if self._active_button and self._long_press_timer_id:
             dist = (abs(event.x_root - self._press_x)**2 + abs(event.y_root - self._press_y)**2)**0.5
-            if dist > self.DRAG_THRESHOLD_PIXELS:
+            if dist > self._DRAG_THRESHOLD_PIXELS:
                 self.after_cancel(self._long_press_timer_id)
                 self._long_press_timer_id = None
                 self._active_button = None
