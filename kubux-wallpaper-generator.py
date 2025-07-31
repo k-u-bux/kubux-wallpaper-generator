@@ -458,34 +458,34 @@ class LongMenu(tk.Toplevel):
         # self.grab_set()             # Make it modal, redirect all input here
 
         self.result = default_option
-        self.options = other_options
+        self._options = other_options
 
-        self.app_font = font if font else ("TkDefaultFont", 12, "normal")
+        self._app_font = font if font else ("TkDefaultFont", 12, "normal")
 
-        self.listbox_frame = ttk.Frame(self)
-        self.listbox_frame.pack(padx=10, pady=10, fill="both", expand=True)
+        self._listbox_frame = ttk.Frame(self)
+        self._listbox_frame.pack(padx=10, pady=10, fill="both", expand=True)
 
-        self.listbox = tk.Listbox(
-            self.listbox_frame,
+        self._listbox = tk.Listbox(
+            self._listbox_frame,
             selectmode=tk.SINGLE,
-            font=self.app_font,
+            font=self._app_font,
             height=15
         )
-        self.listbox.pack(side="left", fill="both", expand=True)
+        self._listbox.pack(side="left", fill="both", expand=True)
 
-        self.scrollbar = ttk.Scrollbar(self.listbox_frame, orient="vertical", command=self.listbox.yview)
-        self.scrollbar.pack(side="right", fill="y")
-        self.listbox.config(yscrollcommand=self.scrollbar.set)
+        self._scrollbar = ttk.Scrollbar(self._listbox_frame, orient="vertical", command=self._listbox.yview)
+        self._scrollbar.pack(side="right", fill="y")
+        self._listbox.config(yscrollcommand=self._scrollbar.set)
 
-        # Populate the listbox
+        # Populate the _listbox
         for option_name in other_options:
-            self.listbox.insert(tk.END, option_name)
+            self._listbox.insert(tk.END, option_name)
 
         # --- Bindings ---
-        self.listbox.bind("<<ListboxSelect>>", self._on_listbox_select)
-        self.listbox.bind("<Double-Button-1>", self._on_double_click) # Double-click to select and close
+        self._listbox.bind("<<ListboxSelect>>", self._on_listbox_select)
+        self._listbox.bind("<Double-Button-1>", self._on_double_click) # Double-click to select and close
         self.bind("<Return>", self._on_return_key) # Enter key to select and close
-        self.bind("<Escape>", self._on_cancel) # Close on Escape key
+        self.bind("<Escape>", self._cancel) # Close on Escape key
         self.bind("<FocusOut>", self._on_focus_out)
         
         # --- Positioning and Focus ---
@@ -512,26 +512,26 @@ class LongMenu(tk.Toplevel):
             
         self.geometry(f"+{int(x_pos)}+{int(y_pos)}")        # Center the window relative to its master
 
-        self.listbox.focus_set() # Set focus to the listbox for immediate keyboard navigation
+        self._listbox.focus_set() # Set focus to the _listbox for immediate keyboard navigation
         self.wait_window(self) # Make the dialog modal until it's destroyed
 
     def _on_listbox_select(self, event):
-        self._on_ok()
+        self._exit_ok()
 
     def _on_double_click(self, event):
-        self._on_ok()
+        self._exit_ok()
 
     def _on_return_key(self, event):
-        self._on_ok()
+        self._exit_ok()
 
-    def _on_ok(self):
-        selected_indices = self.listbox.curselection()
+    def _exit_ok(self):
+        selected_indices = self._listbox.curselection()
         if selected_indices:
             # Store the selected directory name, not the full path yet
-            self.result = self.options[selected_indices[0]]
+            self.result = self._options[selected_indices[0]]
         self.destroy()
 
-    def _on_cancel(self, event=None):
+    def _cancel(self, event=None):
         self.result = None
         self.destroy()
 
@@ -539,7 +539,7 @@ class LongMenu(tk.Toplevel):
         # If the widget losing focus is not a child of this menu (e.g., clicking outside)
         # then close the menu.
         if self.winfo_exists() and not self.focus_get() in self.winfo_children():
-            self._on_cancel()
+            self._cancel()
 
         
 class BreadCrumNavigator(ttk.Frame):
