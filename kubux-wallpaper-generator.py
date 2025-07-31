@@ -787,8 +787,7 @@ class ImagePickerDialog(tk.Toplevel):
         ttk.Button(self._control_frame, text="Add Selected", command=self._on_add_selected).pack(side="right", padx=24)
 
     def _configure_picker_button(self, btn, img_path, tk_thumbnail):
-        """Callback to configure image picker buttons."""
-        btn.config(
+         btn.config(
             cursor="hand2", 
             relief="flat", 
             borderwidth=0,
@@ -822,7 +821,6 @@ class ImagePickerDialog(tk.Toplevel):
         self.hide()
 
     def _save_geometry(self):
-        """Saves the current dialog geometry AND current directory to app settings."""
         if hasattr(self._master, 'app_settings'):
             self.update_idletasks()
             geometry = self.geometry()
@@ -831,7 +829,6 @@ class ImagePickerDialog(tk.Toplevel):
             self._master.save_app_settings()
 
     def _load_geometry(self):
-        """Loads and applies saved dialog geometry from app settings."""
         if hasattr(self._master, 'app_settings'):
             geometry_str = self._master.app_settings.get('image_picker_dialog_geometry')
             if geometry_str:
@@ -876,13 +873,11 @@ class ImagePickerDialog(tk.Toplevel):
             button_widget.config(highlightbackground="blue")
 
     def _on_add_selected(self):
-        """Callback for 'Add Selected' button, saves geometry and adds files."""
         self._save_geometry()
         self._master.add_multiple_images_as_symlinks(self.selected_files)
         self.hide()
 
     def _on_canvas_configure(self, event):
-        """Handles canvas resizing to adjust grid layout."""
         self._gallery_canvas.itemconfig(self._gallery_canvas.find_all()[0], width=event.width)
         self._gallery_grid._on_resize()
 
