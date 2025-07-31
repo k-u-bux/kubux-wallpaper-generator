@@ -286,38 +286,38 @@ def settle_geometry(widget):
     widget.update_idletasks()
 
 class DirectoryThumbnailGrid(tk.Frame):
-    def __init__(self, master=None, directory_path="", item_fixed_width=None, bw=None,
+    def __init__(self, master=None, directory_path="", item_width=None, item_border_width=None,
                  button_config_callback=None, **kwargs):
         super().__init__(master, **kwargs)
 
-        self.border_width = bw
+        self._item_border_width = item_border_width
         self._directory_path = directory_path
-        self._item_fixed_width = item_fixed_width
+        self._item_width = item_width
         self._button_config_callback = button_config_callback 
-        self._known_widgets = OrderedDict() # This is a dict: hash_str -> (tk.Button, ImageTk.PhotoImage)
+        self._widget_cache = OrderedDict() # This is a dict: hash_str -> (tk.Button, ImageTk.PhotoImage)
+        self._cache_size = 2000
         self._active_widgets = {} # This is a dict: img_path -> (tk.Button, ImageTk.PhotoImage)
         self._last_known_width = -1
-        self._cache_size = 2000
 
         self.bind("<Configure>", self._on_resize)
 
     def set_size_and_path(self, width, path=IMAGE_DIR):
         self._directory_path = path
-        self._item_fixed_width = width
+        self._item_width = width
         self.regrid()
 
     def _get_button(self, img_path, width):
         cache_key = uniq_file_id(img_path, width)
-        target_btn, tk_image = self._known_widgets.get(cache_key, (None, None)) 
+        target_btn, tk_image = self._widget_cache.get(cache_key, (None, None))
         
         if target_btn is None:
             target_btn = tk.Button(self)
             tk_image_ref = self._configure_button(target_btn, img_path)
             assert not tk_image_ref is None
-            self._known_widgets[cache_key] = (target_btn, tk_image_ref)
+            self._widget_cache[cache_key] = (target_btn, tk_image_ref)
         else:
             assert not tk_image is None
-            self._known_widgets.move_to_end(cache_key)
+            self._widget_cache.move_to_end(cache_key)
             
         return (target_btn, tk_image)
             
@@ -336,7 +336,7 @@ class DirectoryThumbnailGrid(tk.Frame):
 
         # Create/reuse and configure buttons for the new set of image paths
         for img_path in new_image_paths_from_disk:
-            target_btn, tk_image = self._get_button(img_path, self._item_fixed_width)
+            target_btn, tk_image = self._get_button(img_path, self._item_width)
             self._active_widgets[img_path] = (target_btn, tk_image)
             
         self._layout_the_grid()
@@ -376,7 +376,7 @@ class DirectoryThumbnailGrid(tk.Frame):
 
     def _calculate_columns(self, frame_width):
         if frame_width <= 0: return 1
-        item_total_occupancy_width = self._item_fixed_width + (2 * self.border_width) 
+        item_total_occupancy_width = self._item_width + (2 * self._item_border_width)
         buffer_for_gutters_and_edges = 10 
         available_width_for_items = frame_width - buffer_for_gutters_and_edges
         if available_width_for_items <= 0: return 1
@@ -412,11 +412,11 @@ class DirectoryThumbnailGrid(tk.Frame):
         
         self.update_idletasks()
 
-        while len( self._known_widgets ) > self._cache_size:
-            self._known_widgets.popitem(last=False)
+        while len(self._widget_cache) > self._cache_size:
+            self._widget_cache.popitem(last=False)
         
     def _configure_button(self, btn, img_path):
-        thumbnail_pil = get_or_make_thumbnail(img_path, self._item_fixed_width)
+        thumbnail_pil = get_or_make_thumbnail(img_path, self._item_width)
         tk_thumbnail = None
         if thumbnail_pil:
             try:
@@ -442,11 +442,11 @@ class DirectoryThumbnailGrid(tk.Frame):
                 btn.image = None
                 btn.destroy() 
         self._active_widgets.clear()
-        for btn, _ in self._known_widgets.values(): 
+        for btn, _ in self._widget_cache.values():
             if btn is not None and btn.winfo_exists():
                 btn.image = None
                 btn.destroy() 
-        self._known_widgets.clear()
+        self._widget_cache.clear()
         super().destroy()
 
 
@@ -754,8 +754,8 @@ class ImagePickerDialog(tk.Toplevel):
         self.gallery_grid = DirectoryThumbnailGrid(
             self.gallery_canvas, 
             directory_path=self.current_directory,
-            item_fixed_width=self.thumbnail_max_size,
-            bw = 6,
+            item_width=self.thumbnail_max_size,
+            item_border_width= 6,
             button_config_callback=self._configure_picker_button,
             bg=self.cget("background")
         )
@@ -1052,8 +1052,8 @@ class WallpaperApp(tk.Tk):
         self.gallery_grid = DirectoryThumbnailGrid(
             self.gallery_canvas, 
             directory_path=IMAGE_DIR,
-            item_fixed_width=self.gallery_thumbnail_max_size,
-            bw=2,
+            item_width=self.gallery_thumbnail_max_size,
+            item_border_width=2,
             button_config_callback=self._gallery_configure_button,
             bg=self.cget("background")
         )
