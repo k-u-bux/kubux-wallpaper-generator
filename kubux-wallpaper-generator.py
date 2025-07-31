@@ -317,6 +317,7 @@ class DirectoryThumbnailGrid(tk.Frame):
             self._widget_cache[cache_key] = (target_btn, tk_image_ref)
         else:
             assert not tk_image is None
+            self._button_config_callback(target_btn, img_path, tk_image)
             self._widget_cache.move_to_end(cache_key)
             
         return (target_btn, tk_image)
@@ -696,7 +697,7 @@ class ImagePickerDialog(tk.Toplevel):
     def _cache_widget(self):
         try:
             path_name = path_name_queue.get_nowait()
-            self.gallery_grid._get_button(path_name, self._thumbnail_max_size)
+            self._gallery_grid._get_button(path_name, self._thumbnail_max_size)
             # print(f"created button for {path_name} at size {self._thumbnail_max_size}")
         except queue.Empty:
             pass
@@ -709,7 +710,7 @@ class ImagePickerDialog(tk.Toplevel):
         self._master = master
         self._thumbnail_max_size = thumbnail_max_size
         self._current_image_dir = image_dir
-        self.selected_files = {}
+        self.selected_files = []
 
         self._create_widgets()
 
@@ -722,67 +723,68 @@ class ImagePickerDialog(tk.Toplevel):
         self.withdraw()
 
     def _repaint(self):
-        self.gallery_grid.set_size_and_path(self._thumbnail_max_size, self._current_image_dir)
+        self._gallery_grid.set_size_and_path(self._thumbnail_max_size, self._current_image_dir)
         self.update_idletasks()
 
     def show(self, width):
         self._thumbnail_max_size = width
+        self.selected_files = []
         self.deiconify()
         self._load_geometry()
         self.title("Add Images to Collection")
         self.transient(self.master)
         self.grab_set()
         self._browse_directory(self._current_image_dir)
-        self.gallery_canvas.yview_moveto(0.0)
+        self._gallery_canvas.yview_moveto(0.0)
         self.after(100, self.focus_set)
  
     def _create_widgets(self):
         # Thumbnail Display Area (Canvas and Scrollbar)
-        self.canvas_frame = ttk.Frame(self)
-        self.canvas_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self._canvas_frame = ttk.Frame(self)
+        self._canvas_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self.gallery_canvas = tk.Canvas(self.canvas_frame, bg=self.cget("background"))
-        self.gallery_scrollbar = ttk.Scrollbar(self.canvas_frame, orient="vertical", command=self.gallery_canvas.yview)
-        self.gallery_canvas.config(yscrollcommand=self.gallery_scrollbar.set)
+        self._gallery_canvas = tk.Canvas(self._canvas_frame, bg=self.cget("background"))
+        self._gallery_scrollbar = ttk.Scrollbar(self._canvas_frame, orient="vertical", command=self._gallery_canvas.yview)
+        self._gallery_canvas.config(yscrollcommand=self._gallery_scrollbar.set)
         
-        self.gallery_scrollbar.pack(side="right", fill="y")
-        self.gallery_canvas.pack(side="left", fill="both", expand=True)
+        self._gallery_scrollbar.pack(side="right", fill="y")
+        self._gallery_canvas.pack(side="left", fill="both", expand=True)
         
-        self.gallery_grid = DirectoryThumbnailGrid(
-            self.gallery_canvas, 
+        self._gallery_grid = DirectoryThumbnailGrid(
+            self._gallery_canvas,
             directory_path=self._current_image_dir,
             item_width=self._thumbnail_max_size,
-            item_border_width= 6,
+            item_border_width=6,
             button_config_callback=self._configure_picker_button,
             bg=self.cget("background")
         )
-        self.gallery_canvas.create_window((0, 0), window=self.gallery_grid, anchor="nw")
+        self._gallery_canvas.create_window((0, 0), window=self._gallery_grid, anchor="nw")
 
-        self.gallery_canvas.bind("<Configure>", self._on_canvas_configure)
-        self.gallery_grid.bind("<Configure>", lambda e: self.gallery_canvas.configure(scrollregion=self.gallery_canvas.bbox("all")))
+        self._gallery_canvas.bind("<Configure>", self._on_canvas_configure)
+        self._gallery_grid.bind("<Configure>", lambda e: self._gallery_canvas.configure(scrollregion=self._gallery_canvas.bbox("all")))
         
         self._bind_mousewheel(self)
 
-        self.bind("<Up>", lambda e: self.gallery_canvas.yview_scroll(-1, "units"))
-        self.bind("<Down>", lambda e: self.gallery_canvas.yview_scroll(1, "units"))
-        self.bind("<Prior>", lambda e: self.gallery_canvas.yview_scroll(-1, "pages"))
-        self.bind("<Next>", lambda e: self.gallery_canvas.yview_scroll(1, "pages"))
+        self.bind("<Up>", lambda e: self._gallery_canvas.yview_scroll(-1, "units"))
+        self.bind("<Down>", lambda e: self._gallery_canvas.yview_scroll(1, "units"))
+        self.bind("<Prior>", lambda e: self._gallery_canvas.yview_scroll(-1, "pages"))
+        self.bind("<Next>", lambda e: self._gallery_canvas.yview_scroll(1, "pages"))
 
         # Control Frame (at the bottom)
-        control_frame = ttk.Frame(self)
-        control_frame.pack(fill="x", padx=5, pady=5)
+        self._control_frame = ttk.Frame(self)
+        self._control_frame.pack(fill="x", padx=5, pady=5)
 
         # Breadcrumb Frame
         self.breadcrumb_nav = BreadCrumNavigator(
-            control_frame, # Parent is the control_frame
+            self._control_frame, # Parent is the _control_frame
             on_navigate_callback=self._browse_directory, # This callback will update the grid and breadcrumbs
             font=self._master.app_font, # Use the app's font
         )
         self.breadcrumb_nav.pack(side="left", fill="x", expand=True, padx=5)
 
         # Right side: Add and Cancel buttons (packed in reverse order for correct visual sequence)
-        ttk.Button(control_frame, text="Cancel", command=self._on_closing).pack(side="right", padx=(24,2))
-        ttk.Button(control_frame, text="Add Selected", command=self._on_add_selected).pack(side="right", padx=24)
+        ttk.Button(self._control_frame, text="Cancel", command=self._on_closing).pack(side="right", padx=(24, 2))
+        ttk.Button(self._control_frame, text="Add Selected", command=self._on_add_selected).pack(side="right", padx=24)
 
     def _configure_picker_button(self, btn, img_path, tk_thumbnail):
         """Callback to configure image picker buttons."""
@@ -816,7 +818,6 @@ class ImagePickerDialog(tk.Toplevel):
         toplevel_window.geometry(f"+{x_pos}+{y_pos}")
 
     def _on_closing(self):
-        """Handler for window close, saves geometry then destroys."""
         self._save_geometry()
         self.hide()
 
@@ -863,31 +864,27 @@ class ImagePickerDialog(tk.Toplevel):
             print("Warning: background_worker not found. Cannot update its current_dir.")
             
         self.breadcrumb_nav.set_path(path)
-        self.gallery_grid.set_size_and_path(self._thumbnail_max_size, self._current_image_dir)
+        self._gallery_grid.set_size_and_path(self._thumbnail_max_size, self._current_image_dir)
         self._repaint()
 
     def _toggle_selection(self, img_path, button_widget):
         if img_path in self.selected_files:
-            del self.selected_files[img_path]
+            self.selected_files.remove(img_path)
             button_widget.config(highlightbackground=self.cget("background"))
         else:
-            self.selected_files[img_path] = True
+            self.selected_files.append(img_path)
             button_widget.config(highlightbackground="blue")
 
     def _on_add_selected(self):
         """Callback for 'Add Selected' button, saves geometry and adds files."""
         self._save_geometry()
-        self._master.add_multiple_images_as_symlinks(list(self.selected_files.keys()))
+        self._master.add_multiple_images_as_symlinks(self.selected_files)
         self.hide()
-
-    def get_selected_paths(self):
-        """Returns the list of currently selected image file paths."""
-        return list(self.selected_files.keys())
 
     def _on_canvas_configure(self, event):
         """Handles canvas resizing to adjust grid layout."""
-        self.gallery_canvas.itemconfig(self.gallery_canvas.find_all()[0], width=event.width)
-        self.gallery_grid._on_resize()
+        self._gallery_canvas.itemconfig(self._gallery_canvas.find_all()[0], width=event.width)
+        self._gallery_grid._on_resize()
 
     def _bind_mousewheel(self, widget):
         widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
@@ -895,9 +892,9 @@ class ImagePickerDialog(tk.Toplevel):
         widget.bind("<Button-5>", lambda e: self._on_mousewheel(e), add="+")
 
     def _on_mousewheel(self, event):
-        if platform.system() == "Windows": self.gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        elif event.num == 4: self.gallery_canvas.yview_scroll(-1, "units")
-        elif event.num == 5: self.gallery_canvas.yview_scroll(1, "units")
+        if platform.system() == "Windows": self._gallery_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        elif event.num == 4: self._gallery_canvas.yview_scroll(-1, "units")
+        elif event.num == 5: self._gallery_canvas.yview_scroll(1, "units")
 
         
 class WallpaperApp(tk.Tk):
