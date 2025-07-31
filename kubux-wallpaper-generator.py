@@ -696,23 +696,22 @@ class ImagePickerDialog(tk.Toplevel):
     def _cache_widget(self):
         try:
             path_name = path_name_queue.get_nowait()
-            self.gallery_grid._get_button(path_name, self.thumbnail_max_size)
-            # print(f"created button for {path_name} at size {self.thumbnail_max_size}")
+            self.gallery_grid._get_button(path_name, self._thumbnail_max_size)
+            # print(f"created button for {path_name} at size {self._thumbnail_max_size}")
         except queue.Empty:
             pass
         self.after(50, self._cache_widget)
         
-    def __init__(self, master, thumbnail_max_size, image_dir_path):
+    def __init__(self, master, thumbnail_max_size, image_dir):
         super().__init__(master)
         self.withdraw()
 
-        self.master_app = master
-        self.thumbnail_max_size = thumbnail_max_size
-        self.current_directory = image_dir_path
-
+        self._master = master
+        self._thumbnail_max_size = thumbnail_max_size
+        self._current_image_dir = image_dir
         self.selected_files = {}
 
-        self.create_widgets()
+        self._create_widgets()
 
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
@@ -722,22 +721,22 @@ class ImagePickerDialog(tk.Toplevel):
         self.grab_release()
         self.withdraw()
 
-    def repaint(self):
-        self.gallery_grid.set_size_and_path(self.thumbnail_max_size, self.current_directory)
+    def _repaint(self):
+        self.gallery_grid.set_size_and_path(self._thumbnail_max_size, self._current_image_dir)
         self.update_idletasks()
 
     def show(self, width):
-        self.thumbnail_max_size = width
+        self._thumbnail_max_size = width
         self.deiconify()
         self._load_geometry()
         self.title("Add Images to Collection")
         self.transient(self.master)
         self.grab_set()
-        self._browse_directory(self.current_directory)
+        self._browse_directory(self._current_image_dir)
         self.gallery_canvas.yview_moveto(0.0)
         self.after(100, self.focus_set)
  
-    def create_widgets(self):
+    def _create_widgets(self):
         # Thumbnail Display Area (Canvas and Scrollbar)
         self.canvas_frame = ttk.Frame(self)
         self.canvas_frame.pack(fill="both", expand=True, padx=5, pady=5)
@@ -751,8 +750,8 @@ class ImagePickerDialog(tk.Toplevel):
         
         self.gallery_grid = DirectoryThumbnailGrid(
             self.gallery_canvas, 
-            directory_path=self.current_directory,
-            item_width=self.thumbnail_max_size,
+            directory_path=self._current_image_dir,
+            item_width=self._thumbnail_max_size,
             item_border_width= 6,
             button_config_callback=self._configure_picker_button,
             bg=self.cget("background")
@@ -777,7 +776,7 @@ class ImagePickerDialog(tk.Toplevel):
         self.breadcrumb_nav = BreadCrumNavigator(
             control_frame, # Parent is the control_frame
             on_navigate_callback=self._browse_directory, # This callback will update the grid and breadcrumbs
-            font=self.master_app.app_font, # Use the app's font
+            font=self._master.app_font, # Use the app's font
         )
         self.breadcrumb_nav.pack(side="left", fill="x", expand=True, padx=5)
 
@@ -803,10 +802,10 @@ class ImagePickerDialog(tk.Toplevel):
 
     def _center_toplevel_window(self, toplevel_window):
         toplevel_window.update_idletasks()
-        master_x = self.master_app.winfo_x()
-        master_y = self.master_app.winfo_y()
-        master_w = self.master_app.winfo_width()
-        master_h = self.master_app.winfo_height()
+        master_x = self._master.winfo_x()
+        master_y = self._master.winfo_y()
+        master_w = self._master.winfo_width()
+        master_h = self._master.winfo_height()
 
         popup_w = toplevel_window.winfo_width()
         popup_h = toplevel_window.winfo_height()
@@ -823,17 +822,17 @@ class ImagePickerDialog(tk.Toplevel):
 
     def _save_geometry(self):
         """Saves the current dialog geometry AND current directory to app settings."""
-        if hasattr(self.master_app, 'app_settings'):
+        if hasattr(self._master, 'app_settings'):
             self.update_idletasks()
             geometry = self.geometry()
-            self.master_app.app_settings['image_picker_dialog_geometry'] = geometry
-            self.master_app.app_settings['image_picker_last_directory'] = self.current_directory
-            self.master_app.save_app_settings()
+            self._master.app_settings['image_picker_dialog_geometry'] = geometry
+            self._master.app_settings['image_picker_last_directory'] = self._current_image_dir
+            self._master.save_app_settings()
 
     def _load_geometry(self):
         """Loads and applies saved dialog geometry from app settings."""
-        if hasattr(self.master_app, 'app_settings'):
-            geometry_str = self.master_app.app_settings.get('image_picker_dialog_geometry')
+        if hasattr(self._master, 'app_settings'):
+            geometry_str = self._master.app_settings.get('image_picker_dialog_geometry')
             if geometry_str:
                 try:
                     self.geometry(geometry_str)
@@ -857,15 +856,15 @@ class ImagePickerDialog(tk.Toplevel):
             messagebox.showerror("Error", f"Invalid directory: {path}", parent=self)
             return
         
-        self.current_directory = path
+        self._current_image_dir = path
         try: # Added try-except for background_worker in case it's not global or initialized yet
             background_worker.current_dir = path
         except NameError:
             print("Warning: background_worker not found. Cannot update its current_dir.")
             
         self.breadcrumb_nav.set_path(path)
-        self.gallery_grid.set_size_and_path(self.thumbnail_max_size, self.current_directory)
-        self.repaint()
+        self.gallery_grid.set_size_and_path(self._thumbnail_max_size, self._current_image_dir)
+        self._repaint()
 
     def _toggle_selection(self, img_path, button_widget):
         if img_path in self.selected_files:
@@ -878,7 +877,7 @@ class ImagePickerDialog(tk.Toplevel):
     def _on_add_selected(self):
         """Callback for 'Add Selected' button, saves geometry and adds files."""
         self._save_geometry()
-        self.master_app.add_multiple_images_as_symlinks(list(self.selected_files.keys()))
+        self._master.add_multiple_images_as_symlinks(list(self.selected_files.keys()))
         self.hide()
 
     def get_selected_paths(self):
