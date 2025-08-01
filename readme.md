@@ -29,7 +29,10 @@ cd kubux-wallpaper-generator
 nix profile install .
 ```
 
-### From Source (Manual)
+Alternatively, you can run or install by pointing nix directly to the project url.
+
+
+### From Source (Manual, untested)
 
 If you're not using NixOS, you can install the dependencies manually:
 
@@ -116,11 +119,21 @@ python kubux-wallpaper-generator.py
 
 ## License
 
-This project is NOT YET LICENSED.
+Kubux Wallpaper Generator is licensed under the [Apache License 2.0](LICENSE).
+
+### Why Apache 2.0?
+
+- **Patent Protection**: Includes an express patent license to users
+- **Attribution**: Requires appropriate attribution
+- **Contribution Clarity**: Clear handling of contributions
+- **Commercial Use**: Permissive for businesses and commercial use
+- **Warranty Disclaimer**: Clear protections for developers
+
 
 ## Acknowledgments
 
 - Together.ai for providing the image generation API
-- The Python community for the excellent libraries used in this project
-- NixOS for the reproducible build system
+- The Python community for the libraries used in this project
+- NixOS for the reproducible build and development system
 - AI tools for generating code and documentation
+- scancode-toolkit for keeping AI somewhat in check
