@@ -188,7 +188,9 @@ def custom_message_dialog(parent, title, message, font=("Arial", 12)):
 
 def generate_image(prompt, model="black-forest-labs/FLUX.1-pro",
 #                   width=1184, height=736, steps=28,
-                   width=1248, height=704, steps=28, # almost 16 : 9
+#                   width=1248, height=704, # almost 16 : 9
+                   width=1920, height=1080, # almost 16 : 9
+                   steps=28,
                    error_callback=fallback_show_error):
     client = Together(api_key=TOGETHER_API_KEY)
     try:
@@ -1888,10 +1890,18 @@ class WallpaperApp(tk.Tk):
         threading.Thread(target=self._run_generation_task, args=(prompt,), daemon=True).start()
 
     def _run_generation_task(self, prompt):
-        image_url = generate_image(prompt)
+        image_url = generate_image(prompt,
+                                   error_callback=lambda t, m : custom_message_dialog(parent=self,
+                                                                                      title=t,
+                                                                                      message=m,
+                                                                                      font=self.app_font))
         if image_url:
             file_name = unique_name("dummy.png","generated")
-            save_path = download_image(image_url, file_name)
+            save_path = download_image(image_url, file_name,
+                                       error_callback=lambda t, m : custom_message_dialog(parent=self,
+                                                                                          title=t,
+                                                                                          message=m,
+                                                                                          font=self.app_font))
             if save_path:
                 self.after(0, self._load_images_and_select, save_path)
         self.after(0, self.generate_button.config, {'text':"Generate", 'state':"normal"})
