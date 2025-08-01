@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import math
 import platform
 import secrets
 import queue
@@ -186,10 +187,51 @@ def custom_message_dialog(parent, title, message, font=("Arial", 12)):
     
 # --- Together.ai Image Generation ---
 
+def best_dimensions():
+    root = tk.Tk()
+    root.withdraw()
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    ratio = screen_width / screen_height
+    root.destroy()
+    best_h = 20;
+    best_w = best_h * math.ceil(ratio)
+    for w in range(8,45):
+        for h in range(8,45):
+            r = w / h
+            if not r < ratio:
+                if not ( best_w / best_h ) < r:
+                    best_w = w
+                    best_h = h
+    return best_w * 32, best_h * 32
+                
+def good_dimensions(delta=0.05):
+    root = tk.Tk()
+    root.withdraw()
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    ratio = screen_width / screen_height
+    root.destroy()
+    best_h = 20;
+    best_w = best_h * math.ceil(ratio)
+    for w in range(8,45):
+        for h in range(8,45):
+            r = w / h
+            if not r < ratio:
+                if not ratio + delta < r:
+                    best_w = w
+                    best_h = h
+    return best_w * 32, best_h * 32
+                
+ai_width, ai_height = good_dimensions()
+
+# print(f"width = {ai_width}, height = {ai_height}")
+
 def generate_image(prompt, model="black-forest-labs/FLUX.1-pro",
 #                   width=1184, height=736, steps=28,
 #                   width=1248, height=704, # almost 16 : 9
-                   width=1920, height=1080, # almost 16 : 9
+#                   width=1920, height=1080, # almost 16 : 9
+                   width=ai_width, height=ai_height,
                    steps=28,
                    error_callback=fallback_show_error):
     client = Together(api_key=TOGETHER_API_KEY)
