@@ -527,12 +527,12 @@ class FullscreenImageViewer(tk.Toplevel):
         except Exception as e:
             print(f"Error loading image {self.image_path}: {e}")
             self.destroy()
-    
+
     def _update_image(self):
         """Update the displayed image based on current zoom and size."""
         if not self.original_image:
             return
-            
+                
         # Get current canvas size
         canvas_width = self.canvas.winfo_width()
         canvas_height = self.canvas.winfo_height()
@@ -542,7 +542,7 @@ class FullscreenImageViewer(tk.Toplevel):
             canvas_width = 800
         if canvas_height <= 1:
             canvas_height = 600
-            
+                
         # Get original image dimensions
         orig_width, orig_height = self.original_image.size
         
@@ -569,39 +569,63 @@ class FullscreenImageViewer(tk.Toplevel):
         )
         self.photo_image = ImageTk.PhotoImage(self.display_image)
         
+        # Calculate the offset to center the image
+        x_offset = max(0, (canvas_width - new_width) // 2)
+        y_offset = max(0, (canvas_height - new_height) // 2)
+        
         # Update canvas with new image
         self.canvas.delete("all")
         self.image_id = self.canvas.create_image(
-            0, 0, anchor=tk.NW, image=self.photo_image
+            x_offset, y_offset, 
+            anchor=tk.NW, 
+            image=self.photo_image
         )
         
-        # Update canvas scroll region
-        self.canvas.config(scrollregion=(0, 0, new_width, new_height))
+        # Set the scroll region - determine if scrolling is needed
+        if new_width > canvas_width or new_height > canvas_height:
+            # Image is larger than canvas, set scroll region to image size
+            self.canvas.config(scrollregion=(0, 0, new_width, new_height))
+            
+            # When image is larger than canvas, we don't need the offset
+            # We'll reposition the image at the origin for proper scrolling
+            self.canvas.coords(self.image_id, 0, 0)
+        else:
+            # Image fits within canvas, include the offset in the scroll region
+            self.canvas.config(scrollregion=(0, 0, 
+                                            max(canvas_width, x_offset + new_width), 
+                                            max(canvas_height, y_offset + new_height)))
         
-        # Show/hide scrollbars based on image size vs canvas size
+        # Update scrollbars visibility based on image vs canvas size
         self._update_scrollbars()
-    
+        
+        # If in fit mode or image is smaller than canvas, center the view
+        if self.fit_to_window or (new_width <= canvas_width and new_height <= canvas_height):
+            # Reset scroll position to start
+            self.canvas.xview_moveto(0)
+            self.canvas.yview_moveto(0)
+
     def _update_scrollbars(self):
-        """Show or hide scrollbars based on the image size."""
+        """Show or hide scrollbars based on the image size compared to canvas."""
         # Get image and canvas dimensions
         img_width = self.display_image.width
         img_height = self.display_image.height
         canvas_width = self.canvas.winfo_width()
         canvas_height = self.canvas.winfo_height()
         
-        # Show/hide scrollbars
+        # Show/hide horizontal scrollbar
         if img_width <= canvas_width:
             self.h_scrollbar.grid_remove()
-            self.canvas.xview_moveto(0)
+            self.canvas.xview_moveto(0)  # Reset horizontal scroll position
         else:
             self.h_scrollbar.grid()
             
+        # Show/hide vertical scrollbar
         if img_height <= canvas_height:
             self.v_scrollbar.grid_remove()
-            self.canvas.yview_moveto(0)
+            self.canvas.yview_moveto(0)  # Reset vertical scroll position
         else:
             self.v_scrollbar.grid()
-    
+                            
     def _center_on_parent(self):
         """Center this window on its parent."""
         self.update_idletasks()
