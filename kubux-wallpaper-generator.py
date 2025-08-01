@@ -144,7 +144,6 @@ def custom_message_dialog(parent, title, message, font=("Arial", 12)):
     dialog = tk.Toplevel(parent)
     dialog.title(title)
     dialog.transient(parent)  # Set to be on top of the parent window
-    dialog.grab_set()  # Modal: user must interact with this window
     
     # Calculate position to center the dialog on parent
     x = parent.winfo_rootx() + parent.winfo_width() // 2 - 200
@@ -178,6 +177,7 @@ def custom_message_dialog(parent, title, message, font=("Arial", 12)):
     
     # Center dialog on screen
     dialog.update_idletasks()
+    dialog.grab_set()  # Modal: user must interact with this window
     
     # Set focus and wait for window to close
     ok_button.focus_set()
@@ -1332,10 +1332,11 @@ class ImagePickerDialog(tk.Toplevel):
     def _show_full_screen(self, img_path):
         """Open the image in the fullscreen viewer when right-clicked."""
         try:
+            # raise ValueError("thrown for testing")
             viewer = FullscreenImageViewer(self, img_path, title=img_path, start_fullscreen=True)
             viewer.grab_set()  # Make the viewer modal
         except Exception as e:
-            custom_message_dialog(parent=self, title="Error", message=f"Could not open image: {e}")
+            custom_message_dialog(parent=self, title="Error", message=f"Could not open image: {e}", font=self._master.app_font)
         
     def _configure_picker_button(self, btn, img_path, tk_thumbnail):
          btn.config(
@@ -1403,7 +1404,7 @@ class ImagePickerDialog(tk.Toplevel):
 
     def _browse_directory(self, path):
         if not os.path.isdir(path):
-            messagebox.showerror("Error", f"Invalid directory: {path}", parent=self)
+            custom_message_dialog(parent=self, title="Error", message=f"Invalid directory: {path}", font=self._master.app_font)
             return
         
         self._current_image_dir = path
@@ -1715,6 +1716,7 @@ class WallpaperApp(tk.Tk):
 
     def _display_image(self, image_path):
         try:
+            # raise ValueError("simulated for testing")
             full_img = get_full_size_image(image_path)
             fw, fh = self.generated_image_label.winfo_width(), self.generated_image_label.winfo_height()
             if fw <= 1 or fh <= 1: return
@@ -1724,7 +1726,7 @@ class WallpaperApp(tk.Tk):
             self.generated_image_label.image = photo 
             self.current_image_path = image_path
         except Exception as e:
-            messagebox.showerror("Image Display Error", f"Could not display image: {e}")
+            custom_message_dialog(parent=self, title="Image Display Error", message=f"Could not display image: {e}", font=self.app_font)
             self.current_image_path = None
     
     # --- Gallery Methods ---
@@ -1838,7 +1840,7 @@ class WallpaperApp(tk.Tk):
 
     def _show_prompt_history(self):
         if not self.prompt_history:
-            messagebox.showinfo("Prompt History", "No saved prompts found.", parent=self)
+            custom_message_dialog(parent=self, title="Prompt History", message="No saved prompts found.", font=self.app_font)
             return
 
         history_window = tk.Toplevel(self)
@@ -1877,7 +1879,7 @@ class WallpaperApp(tk.Tk):
 
     def _on_generate_button_click(self):
         prompt = self.prompt_text_widget.get("1.0", tk.END).strip()
-        if not prompt: return messagebox.showwarning("Input Error", "Please enter a prompt.")
+        if not prompt: return custom_message_dialog(parent=self, title="Input Error", message="Please enter a prompt.",font=self.app_font)
         self._add_prompt_to_history(prompt)
         self.generate_button.config(text="Generating...", state="disabled")
         threading.Thread(target=self._run_generation_task, args=(prompt,), daemon=True).start()
@@ -1935,19 +1937,22 @@ class WallpaperApp(tk.Tk):
     def _delete_image(self, path_to_delete):
         if path_to_delete and os.path.exists(path_to_delete):
             try:
+                # raise ValueError("thrown for testing purposes")
                 os.remove(path_to_delete)
                 self.generated_image_label.config(image=None)
                 self.generated_image_label.image = None
                 self.current_image_path = None
                 self.gallery_current_selection = None
                 self._load_images()
-            except Exception as e: messagebox.showerror("Deletion Error", f"Failed to delete {e}")
+            except Exception as e:
+                custom_message_dialog(parent=self, title="Deletion Error", message=f"Failed to delete {e}", font=self.app_font)
 
     def _delete_selected_image(self):
         self._delete_image(self.gallery_current_selection)
 
     def _set_current_as_wallpaper(self):
-        if not self.current_image_path: return messagebox.showwarning("Wallpaper Error", "No image selected.")
+        if not self.current_image_path:
+            return custom_message_dialog(parent=self, title="Wallpaper Error", message="No image selected.", font=self.app_font)
         set_wallpaper(self.current_image_path)
 
 
