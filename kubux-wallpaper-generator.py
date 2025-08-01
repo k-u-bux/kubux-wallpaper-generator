@@ -186,7 +186,10 @@ def custom_message_dialog(parent, title, message, font=("Arial", 12)):
     
 # --- Together.ai Image Generation ---
 
-def generate_image(prompt, model="black-forest-labs/FLUX.1-pro", width=1184, height=736, steps=28, error_callback=fallback_show_error):
+def generate_image(prompt, model="black-forest-labs/FLUX.1-pro",
+#                   width=1184, height=736, steps=28,
+                   width=1248, height=704, steps=28, # almost 16 : 9
+                   error_callback=fallback_show_error):
     client = Together(api_key=TOGETHER_API_KEY)
     try:
         response = client.images.generate(
