@@ -115,10 +115,11 @@ python kubux-wallpaper-generator.py
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is NOT YET LICENSED.
 
 ## Acknowledgments
 
 - Together.ai for providing the image generation API
 - The Python community for the excellent libraries used in this project
 - NixOS for the reproducible build system
+- AI tools for generating code and documentation
