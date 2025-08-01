@@ -431,6 +431,348 @@ def settle_geometry(widget):
         widget = widget.master
     widget.update_idletasks()
 
+
+# --- widgets ---
+
+class FullscreenImageViewer(tk.Toplevel):
+    """
+    A widget for displaying an image with zooming and panning capabilities.
+    
+    Features:
+    - Image is scaled to fill the frame by default
+    - '+' key zooms in, '-' key zooms out
+    - Scrollbars appear as needed when the image is larger than the viewport
+    - Mouse drag to pan when zoomed in
+    - Mouse wheel to zoom in/out
+    - ESC key to close
+    """
+    
+    def __init__(self, master, image_path, title=None):
+        """
+        Initialize the image viewer.
+        
+        Args:
+            master: The parent widget
+            image_path: Path to the image file to display
+            title: Optional title for the window (defaults to filename)
+        """
+        super().__init__(master)
+        
+        self.image_path = image_path
+        self.original_image = None
+        self.display_image = None
+        self.photo_image = None
+        
+        # Set window properties
+        self.title(title or os.path.basename(image_path))
+        self.minsize(400, 300)
+        self.geometry("800x600")
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        
+        # Create a frame to hold the canvas and scrollbars
+        self.frame = ttk.Frame(self)
+        self.frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Create horizontal and vertical scrollbars
+        self.h_scrollbar = ttk.Scrollbar(self.frame, orient=tk.HORIZONTAL)
+        self.v_scrollbar = ttk.Scrollbar(self.frame, orient=tk.VERTICAL)
+        
+        # Create canvas for the image
+        self.canvas = tk.Canvas(
+            self.frame, 
+            xscrollcommand=self.h_scrollbar.set,
+            yscrollcommand=self.v_scrollbar.set,
+            bg="black"
+        )
+        
+        # Configure scrollbars
+        self.h_scrollbar.config(command=self.canvas.xview)
+        self.v_scrollbar.config(command=self.canvas.yview)
+        
+        # Grid layout for canvas and scrollbars
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        self.h_scrollbar.grid(row=1, column=0, sticky="ew")
+        self.v_scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        # Configure frame grid weights
+        self.frame.columnconfigure(0, weight=1)
+        self.frame.rowconfigure(0, weight=1)
+        
+        # Image display state
+        self.zoom_factor = 1.0
+        self.fit_to_window = True  # Start in "fit to window" mode
+        
+        # Pan control variables
+        self.pan_start_x = 0
+        self.pan_start_y = 0
+        self.panning = False
+        
+        # Load the image
+        self._load_image()
+        
+        # Bind events
+        self._bind_events()
+        
+        # Center window on parent
+        self._center_on_parent()
+        
+        # Set focus to receive key events
+        self.canvas.focus_set()
+    
+    def _load_image(self):
+        """Load the image from file and display it."""
+        try:
+            self.original_image = Image.open(self.image_path)
+            self._update_image()
+        except Exception as e:
+            print(f"Error loading image {self.image_path}: {e}")
+            self.destroy()
+    
+    def _update_image(self):
+        """Update the displayed image based on current zoom and size."""
+        if not self.original_image:
+            return
+            
+        # Get current canvas size
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        # Use default size if canvas size not available yet
+        if canvas_width <= 1:
+            canvas_width = 800
+        if canvas_height <= 1:
+            canvas_height = 600
+            
+        # Get original image dimensions
+        orig_width, orig_height = self.original_image.size
+        
+        # Calculate dimensions based on fit mode or zoom
+        if self.fit_to_window:
+            # Calculate scale to fit the window
+            scale_width = canvas_width / orig_width
+            scale_height = canvas_height / orig_height
+            scale = min(scale_width, scale_height)
+            self.zoom_factor = scale
+            
+            # Apply the scale
+            new_width = int(orig_width * scale)
+            new_height = int(orig_height * scale)
+        else:
+            # Apply the current zoom factor
+            new_width = int(orig_width * self.zoom_factor)
+            new_height = int(orig_height * self.zoom_factor)
+        
+        # Resize image
+        self.display_image = self.original_image.resize(
+            (new_width, new_height), 
+            Image.LANCZOS
+        )
+        self.photo_image = ImageTk.PhotoImage(self.display_image)
+        
+        # Update canvas with new image
+        self.canvas.delete("all")
+        self.image_id = self.canvas.create_image(
+            0, 0, anchor=tk.NW, image=self.photo_image
+        )
+        
+        # Update canvas scroll region
+        self.canvas.config(scrollregion=(0, 0, new_width, new_height))
+        
+        # Show/hide scrollbars based on image size vs canvas size
+        self._update_scrollbars()
+    
+    def _update_scrollbars(self):
+        """Show or hide scrollbars based on the image size."""
+        # Get image and canvas dimensions
+        img_width = self.display_image.width
+        img_height = self.display_image.height
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        # Show/hide scrollbars
+        if img_width <= canvas_width:
+            self.h_scrollbar.grid_remove()
+            self.canvas.xview_moveto(0)
+        else:
+            self.h_scrollbar.grid()
+            
+        if img_height <= canvas_height:
+            self.v_scrollbar.grid_remove()
+            self.canvas.yview_moveto(0)
+        else:
+            self.v_scrollbar.grid()
+    
+    def _center_on_parent(self):
+        """Center this window on its parent."""
+        self.update_idletasks()
+        parent = self.master
+        
+        # Get parent and self dimensions
+        parent_width = parent.winfo_width()
+        parent_height = parent.winfo_height()
+        parent_x = parent.winfo_rootx()
+        parent_y = parent.winfo_rooty()
+        
+        self_width = self.winfo_width()
+        self_height = self.winfo_height()
+        
+        # Calculate position
+        x = parent_x + (parent_width - self_width) // 2
+        y = parent_y + (parent_height - self_height) // 2
+        
+        # Set position
+        self.geometry(f"+{x}+{y}")
+    
+    def _bind_events(self):
+        """Bind all event handlers."""
+        # Keyboard events
+        self.bind("<Key>", self._on_key)
+        self.bind("<Escape>", lambda e: self.destroy())
+        
+        # Mouse events
+        self.canvas.bind("<ButtonPress-1>", self._on_mouse_down)
+        self.canvas.bind("<B1-Motion>", self._on_mouse_drag)
+        self.canvas.bind("<ButtonRelease-1>", self._on_mouse_up)
+        
+        # Mouse wheel events
+        if platform.system() == "Windows":
+            self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
+        else:
+            self.canvas.bind("<Button-4>", self._on_mouse_wheel)
+            self.canvas.bind("<Button-5>", self._on_mouse_wheel)
+            
+        # Window events
+        self.bind("<Configure>", self._on_configure)
+    
+    def _on_key(self, event):
+        """Handle keyboard events."""
+        key = event.char
+        
+        if key == '+' or key == '=':  # Zoom in
+            self._zoom_in()
+        elif key == '-' or key == '_':  # Zoom out
+            self._zoom_out()
+        elif key == '0':  # Reset zoom
+            self.fit_to_window = True
+            self._update_image()
+    
+    def _on_mouse_down(self, event):
+        """Handle mouse button press."""
+        self.panning = True
+        self.pan_start_x = event.x
+        self.pan_start_y = event.y
+        self.canvas.config(cursor="fleur")  # Change cursor to indicate panning
+        
+    def _on_mouse_drag(self, event):
+        """Handle mouse drag for panning."""
+        if not self.panning:
+            return
+            
+        # Calculate the distance moved
+        dx = self.pan_start_x - event.x
+        dy = self.pan_start_y - event.y
+        
+        # Move the canvas view
+        self.canvas.xview_scroll(dx, "units")
+        self.canvas.yview_scroll(dy, "units")
+        
+        # Update the starting position
+        self.pan_start_x = event.x
+        self.pan_start_y = event.y
+    
+    def _on_mouse_up(self, event):
+        """Handle mouse button release."""
+        self.panning = False
+        self.canvas.config(cursor="")  # Reset cursor
+    
+    def _on_mouse_wheel(self, event):
+        """Handle mouse wheel events for zooming."""
+        if platform.system() == "Windows":
+            delta = event.delta
+            if delta > 0:
+                self._zoom_in(event.x, event.y)
+            else:
+                self._zoom_out(event.x, event.y)
+        else:
+            # For Linux/Unix/Mac
+            if event.num == 4:  # Scroll up
+                self._zoom_in(event.x, event.y)
+            elif event.num == 5:  # Scroll down
+                self._zoom_out(event.x, event.y)
+                
+    def _on_configure(self, event):
+        """Handle window resize events."""
+        # Only process events for the main window, not child widgets
+        if event.widget == self and self.fit_to_window:
+            # Delay update to avoid excessive redraws during resize
+            self.after_cancel(getattr(self, '_resize_job', 'break'))
+            self._resize_job = self.after(100, self._update_image)
+    
+    def _zoom_in(self, x=None, y=None):
+        """Zoom in on the image."""
+        self.fit_to_window = False
+        self.zoom_factor *= 1.25
+        
+        # Save current view fractions before zooming
+        if x is not None and y is not None:
+            # Calculate the fractions to maintain zoom point
+            x_fraction = self.canvas.canvasx(x) / (self.display_image.width)
+            y_fraction = self.canvas.canvasy(y) / (self.display_image.height)
+            
+        # Update the image with new zoom
+        self._update_image()
+        
+        # After zoom, scroll to maintain focus point
+        if x is not None and y is not None:
+            # Calculate new position in the zoomed image
+            new_x = x_fraction * self.display_image.width
+            new_y = y_fraction * self.display_image.height
+            
+            # Calculate canvas center
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+            
+            # Calculate scroll fractions
+            x_view_fraction = (new_x - canvas_width / 2) / self.display_image.width
+            y_view_fraction = (new_y - canvas_height / 2) / self.display_image.height
+            
+            # Apply the scroll
+            self.canvas.xview_moveto(max(0, min(1, x_view_fraction)))
+            self.canvas.yview_moveto(max(0, min(1, y_view_fraction)))
+    
+    def _zoom_out(self, x=None, y=None):
+        """Zoom out from the image."""
+        self.fit_to_window = False
+        self.zoom_factor /= 1.25
+        
+        # Minimum zoom factor - if we go below this, switch to fit mode
+        min_zoom = 0.1
+        if self.zoom_factor < min_zoom:
+            self.fit_to_window = True
+            self._update_image()
+            return
+            
+        # Same logic as zoom in for maintaining focus point
+        if x is not None and y is not None:
+            x_fraction = self.canvas.canvasx(x) / (self.display_image.width)
+            y_fraction = self.canvas.canvasy(y) / (self.display_image.height)
+            
+        self._update_image()
+        
+        if x is not None and y is not None:
+            new_x = x_fraction * self.display_image.width
+            new_y = y_fraction * self.display_image.height
+            
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+            
+            x_view_fraction = (new_x - canvas_width / 2) / self.display_image.width
+            y_view_fraction = (new_y - canvas_height / 2) / self.display_image.height
+            
+            self.canvas.xview_moveto(max(0, min(1, x_view_fraction)))
+            self.canvas.yview_moveto(max(0, min(1, y_view_fraction)))
+
+    
 class DirectoryThumbnailGrid(tk.Frame):
     def __init__(self, master=None, directory_path="", item_width=None, item_border_width=None,
                  button_config_callback=None, **kwargs):
@@ -932,6 +1274,14 @@ class ImagePickerDialog(tk.Toplevel):
         ttk.Button(self._control_frame, text="Cancel", command=self._on_closing).pack(side="right", padx=(24, 2))
         ttk.Button(self._control_frame, text="Add Selected", command=self._on_add_selected).pack(side="right", padx=24)
 
+    def _show_full_screen(self, img_path):
+        """Open the image in the fullscreen viewer when right-clicked."""
+        try:
+            viewer = FullscreenImageViewer(self, img_path)
+            viewer.grab_set()  # Make the viewer modal
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open image: {e}", parent=self)
+        
     def _configure_picker_button(self, btn, img_path, tk_thumbnail):
          btn.config(
             cursor="hand2", 
@@ -939,8 +1289,9 @@ class ImagePickerDialog(tk.Toplevel):
             borderwidth=0,
             highlightthickness=3,
             bg=self.cget("background"),
-            command=lambda p=img_path: self._toggle_selection(p, btn)
+            command=lambda dummy=None: self._toggle_selection(img_path, btn)
          )
+         btn.bind("<Button-3>", lambda dummy: self._show_full_screen(img_path))
         
          if img_path in self.selected_files:
              btn.config(highlightbackground="blue")
@@ -1264,7 +1615,7 @@ class WallpaperApp(tk.Tk):
             bg=self.cget("background"),
             command=lambda dummy=None: self._gallery_on_thumbnail_click(img_path)
         )
-        # btn.bind("<Button-3>", lambda dummy: self._gallery_on_thumbnail_click(img_path))
+        btn.bind("<Button-3>", lambda dummy: self._gallery_on_thumbnail_click_right(img_path))
 
     def show_api_setup_instructions(self):
         instructions = """
@@ -1384,6 +1735,9 @@ class WallpaperApp(tk.Tk):
         old_selection = self.gallery_current_selection
         self.gallery_current_selection = image_path
         self._display_image(image_path)
+    
+    def _gallery_on_thumbnail_click_right(self, image_path):
+        self._delete_image(image_path)
     
     def _gallery_bind_mousewheel(self, widget):
         widget.bind("<MouseWheel>", self._gallery_on_mousewheel, add="+")
@@ -1523,8 +1877,7 @@ class WallpaperApp(tk.Tk):
             self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, self._image_dir())
         self.dialog.show(self.gallery_thumbnail_max_size)
 
-    def _delete_selected_image(self):
-        path_to_delete = self.gallery_current_selection
+    def _delete_image(self, path_to_delete):
         if path_to_delete and os.path.exists(path_to_delete):
             try:
                 os.remove(path_to_delete)
@@ -1534,6 +1887,9 @@ class WallpaperApp(tk.Tk):
                 self.gallery_current_selection = None
                 self._load_images()
             except Exception as e: messagebox.showerror("Deletion Error", f"Failed to delete {e}")
+
+    def _delete_selected_image(self):
+        self._delete_image(self.gallery_current_selection)
 
     def _set_current_as_wallpaper(self):
         if not self.current_image_path: return messagebox.showwarning("Wallpaper Error", "No image selected.")
