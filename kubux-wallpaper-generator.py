@@ -136,9 +136,90 @@ def make_tk_image( pil_image ):
     return ImageTk.PhotoImage(pil_image)
 
 
+# --- dialogue box ---
+def fallback_show_error(title, message):
+    messagebox.showerror(title, message)
+    
+def custom_message_dialog(parent, title, message, font=("Arial", 12)):
+    dialog = tk.Toplevel(parent)
+    dialog.title(title)
+    dialog.transient(parent)  # Set to be on top of the parent window
+    dialog.grab_set()  # Modal: user must interact with this window
+    
+    # Calculate position to center the dialog on parent
+    x = parent.winfo_rootx() + parent.winfo_width() // 2 - 200
+    y = parent.winfo_rooty() + parent.winfo_height() // 2 - 100
+    dialog.geometry(f"400x300+{x}+{y}")
+    
+    # Message area
+    msg_frame = ttk.Frame(dialog, padding=20)
+    msg_frame.pack(fill=tk.BOTH, expand=True)
+    
+    # Text widget with scrollbar for the message
+    text_widget = tk.Text(msg_frame, wrap=tk.WORD, font=font, 
+                          highlightthickness=0, borderwidth=0)
+    scrollbar = ttk.Scrollbar(msg_frame, orient="vertical", 
+                              command=text_widget.yview)
+    text_widget.configure(yscrollcommand=scrollbar.set)
+    
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    
+    # Insert the message text
+    text_widget.insert(tk.END, message)
+    text_widget.configure(state="disabled")  # Make read-only
+    
+    # OK button
+    button_frame = ttk.Frame(dialog, padding=10)
+    button_frame.pack(fill=tk.X)
+    ok_button = ttk.Button(button_frame, text="OK", 
+                          command=dialog.destroy, width=10)
+    ok_button.pack(side=tk.RIGHT, padx=5)
+    
+    # Center dialog on screen
+    dialog.update_idletasks()
+    
+    # Set focus and wait for window to close
+    ok_button.focus_set()
+    dialog.wait_window()
+
+    
+# --- Together.ai Image Generation ---
+
+def generate_image(prompt, model="black-forest-labs/FLUX.1-pro", width=1184, height=736, steps=28, error_callback=fallback_show_error):
+    client = Together(api_key=TOGETHER_API_KEY)
+    try:
+        response = client.images.generate(
+            prompt=prompt,
+            model=model,
+            width=width,
+            height=height,
+            steps=steps
+        )
+        return response.data[0].url
+    except Exception as e:
+        message = f"Failed to download image: {e}"
+        error_callback("API Error", message)
+        return None
+
+def download_image(url, file_name, error_callback=fallback_show_error):
+    try:
+        save_path = os.path.join(DOWNLOAD_DIR,file_name)
+        link_path = os.path.join(IMAGE_DIR,file_name)
+        response = requests.get(url, stream=True)
+        response.raise_for_status() 
+        with open(save_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
+        os.symlink(save_path, link_path)
+        return link_path
+    except Exception as e:
+        message = f"Failed to download image: {e}"
+        error_callback("Download Error", message)
+        return None
+
 # --- Wallpaper Setting Functions (Platform-Specific) ---
 
-def set_wallpaper(image_path):
+def set_wallpaper(image_path, error_callback=fallback_show_error):
     """
     Set the wallpaper on Linux systems with support for multiple desktop environments.
     
@@ -149,7 +230,7 @@ def set_wallpaper(image_path):
         bool: True if wallpaper was successfully set, False otherwise
     """
     if platform.system() != "Linux":
-        messagebox.showwarning("Unsupported OS", f"Wallpaper setting not supported on {platform.system()}.")
+        error_callback("Unsupported OS", f"Wallpaper setting not supported on {platform.system()}.")
         return False
         
     try:
@@ -246,95 +327,14 @@ def set_wallpaper(image_path):
         if success:
             return True
         else:
-            messagebox.showinfo("Desktop Environment Not Detected", 
-                               f"Couldn't detect your desktop environment ({desktop_env}). Try installing 'feh' package and retry.")
+            error_callback("Desktop Environment Not Detected", 
+                           f"Couldn't detect your desktop environment ({desktop_env}). Try installing 'feh' package and retry.")
             return False
             
     except Exception as e:
-        messagebox.showerror("Wallpaper Error", f"Failed to set wallpaper: {e}")
+        error_callback("Wallpaper Error", f"Failed to set wallpaper: {e}")
         return False
     
-
-# --- dialogue box ---
-def custom_message_dialog(parent, title, message, font=("Arial", 12)):
-    dialog = tk.Toplevel(parent)
-    dialog.title(title)
-    dialog.transient(parent)  # Set to be on top of the parent window
-    dialog.grab_set()  # Modal: user must interact with this window
-    
-    # Calculate position to center the dialog on parent
-    x = parent.winfo_rootx() + parent.winfo_width() // 2 - 200
-    y = parent.winfo_rooty() + parent.winfo_height() // 2 - 100
-    dialog.geometry(f"400x300+{x}+{y}")
-    
-    # Message area
-    msg_frame = ttk.Frame(dialog, padding=20)
-    msg_frame.pack(fill=tk.BOTH, expand=True)
-    
-    # Text widget with scrollbar for the message
-    text_widget = tk.Text(msg_frame, wrap=tk.WORD, font=font, 
-                          highlightthickness=0, borderwidth=0)
-    scrollbar = ttk.Scrollbar(msg_frame, orient="vertical", 
-                              command=text_widget.yview)
-    text_widget.configure(yscrollcommand=scrollbar.set)
-    
-    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    
-    # Insert the message text
-    text_widget.insert(tk.END, message)
-    text_widget.configure(state="disabled")  # Make read-only
-    
-    # OK button
-    button_frame = ttk.Frame(dialog, padding=10)
-    button_frame.pack(fill=tk.X)
-    ok_button = ttk.Button(button_frame, text="OK", 
-                          command=dialog.destroy, width=10)
-    ok_button.pack(side=tk.RIGHT, padx=5)
-    
-    # Center dialog on screen
-    dialog.update_idletasks()
-    
-    # Set focus and wait for window to close
-    ok_button.focus_set()
-    dialog.wait_window()
-
-    
-# --- Together.ai Image Generation ---
-
-def fallback_show_error(title, message):
-    messagebox.showerror(title, message)
-    
-def generate_image(prompt, model="black-forest-labs/FLUX.1-pro", width=1184, height=736, steps=28, error_callback=fallback_show_error):
-    client = Together(api_key=TOGETHER_API_KEY)
-    try:
-        response = client.images.generate(
-            prompt=prompt,
-            model=model,
-            width=width,
-            height=height,
-            steps=steps
-        )
-        return response.data[0].url
-    except Exception as e:
-        message = f"Failed to download image: {e}"
-        error_callback("API Error", message)
-        return None
-
-def download_image(url, file_name):
-    try:
-        save_path = os.path.join(DOWNLOAD_DIR,file_name)
-        link_path = os.path.join(IMAGE_DIR,file_name)
-        response = requests.get(url, stream=True)
-        response.raise_for_status() 
-        with open(save_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
-        os.symlink(save_path, link_path)
-        return link_path
-    except Exception as e:
-        message = f"Failed to download image: {e}"
-        error_callback("Download Error", message)
-        return None
 
 def unique_name(original_path, category):
     _, ext = os.path.splitext(original_path)
@@ -443,17 +443,9 @@ def settle_geometry(widget):
 class FullscreenImageViewer(tk.Toplevel):
     """
     A widget for displaying an image with zooming and panning capabilities.
-    
-    Features:
-    - Image is scaled to fill the frame by default
-    - '+' key zooms in, '-' key zooms out
-    - Scrollbars appear as needed when the image is larger than the viewport
-    - Mouse drag to pan when zoomed in
-    - Mouse wheel to zoom in/out
-    - ESC key to close
     """
     
-    def __init__(self, master, image_path, title=None):
+    def __init__(self, master, image_path, title=None, start_fullscreen=False):
         """
         Initialize the image viewer.
         
@@ -461,6 +453,7 @@ class FullscreenImageViewer(tk.Toplevel):
             master: The parent widget
             image_path: Path to the image file to display
             title: Optional title for the window (defaults to filename)
+            start_fullscreen: Whether to start in fullscreen mode
         """
         super().__init__(master)
         
@@ -468,12 +461,20 @@ class FullscreenImageViewer(tk.Toplevel):
         self.original_image = None
         self.display_image = None
         self.photo_image = None
+        self.is_fullscreen = False
         
         # Set window properties
         self.title(title or os.path.basename(image_path))
         self.minsize(400, 300)
-        self.geometry("800x600")
-        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        
+        # Make it transient with parent, but allow window manager integration
+        self.transient(master)
+        self.resizable(True, True)
+        
+        # Ensure proper window manager integration
+        self.wm_attributes("-type", "normal")
+        self.wm_attributes('-fullscreen', start_fullscreen)
+        self.protocol("WM_DELETE_WINDOW", self._close)
         
         # Create a frame to hold the canvas and scrollbars
         self.frame = ttk.Frame(self)
@@ -513,17 +514,31 @@ class FullscreenImageViewer(tk.Toplevel):
         self.pan_start_y = 0
         self.panning = False
         
-        # Load the image
-        self._load_image()
-        
         # Bind events
         self._bind_events()
         
-        # Center window on parent
-        self._center_on_parent()
+        # Load the image
+        self._load_image()
+        
+        # Center window on parent 
+        if not start_fullscreen:
+            self.geometry("800x600")
+            self._center_on_parent()
+        
+        # Set fullscreen if requested (after window has been mapped)
+        if start_fullscreen:
+            self.update_idletasks()  # Make sure window is realized first
+            self.toggle_fullscreen()
         
         # Set focus to receive key events
         self.canvas.focus_set()
+    
+    def toggle_fullscreen(self):
+        """Toggle fullscreen mode."""
+        self.is_fullscreen = not self.is_fullscreen
+        self.attributes('-fullscreen', self.is_fullscreen)
+        self.update_idletasks()
+        self._update_image()
     
     def _load_image(self):
         """Load the image from file and display it."""
@@ -657,7 +672,8 @@ class FullscreenImageViewer(tk.Toplevel):
         """Bind all event handlers."""
         # Keyboard events
         self.bind("<Key>", self._on_key)
-        self.bind("<Escape>", lambda e: self.destroy())
+        self.bind("<F11>", lambda e: self.toggle_fullscreen())
+        self.bind("<Escape>", self._on_escape)
         
         # Mouse events
         self.canvas.bind("<ButtonPress-1>", self._on_mouse_down)
@@ -674,6 +690,15 @@ class FullscreenImageViewer(tk.Toplevel):
         # Window events
         self.bind("<Configure>", self._on_configure)
     
+    def _on_escape(self, event):
+        self._close()
+    
+    def _close(self):
+        if self.is_fullscreen:
+            self.toggle_fullscreen()
+        self.grab_release()
+        self.destroy()
+        
     def _on_key(self, event):
         """Handle keyboard events."""
         key = event.char
@@ -1307,10 +1332,10 @@ class ImagePickerDialog(tk.Toplevel):
     def _show_full_screen(self, img_path):
         """Open the image in the fullscreen viewer when right-clicked."""
         try:
-            viewer = FullscreenImageViewer(self, img_path)
+            viewer = FullscreenImageViewer(self, img_path, title=img_path, start_fullscreen=True)
             viewer.grab_set()  # Make the viewer modal
         except Exception as e:
-            messagebox.showerror("Error", f"Could not open image: {e}", parent=self)
+            custom_message_dialog(parent=self, title="Error", message=f"Could not open image: {e}")
         
     def _configure_picker_button(self, btn, img_path, tk_thumbnail):
          btn.config(
