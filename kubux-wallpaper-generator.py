@@ -299,6 +299,7 @@ def custom_message_dialog(parent, title, message, font=("Arial", 12)):
     ok_button.focus_set()
     dialog.wait_window()
 
+    
 # --- Together.ai Image Generation ---
 
 def generate_image(prompt, model="black-forest-labs/FLUX.1-pro", width=1184, height=736, steps=28):
