@@ -89,7 +89,7 @@ TOGETHER_API_KEY=your_api_key_here
 - `+`: Zoom in
 - `-`: Zoom out
 - `0`: Reset to fit window
-- 'F11': Toggle fullscreen
+- F11: Toggle fullscreen
 - Mouse drag: Pan when zoomed in
 - Mouse wheel: Zoom in/out
 - Esc: Close viewer
