@@ -130,6 +130,16 @@
             echo "You can now run: python kubux-wallpaper-generator.py"
 	    echo ""
 	    echo "A symlink to the actual python interpreter is provided for PyCharm"
+	    cleanup() {
+	        echo "Cleaning up development environment..."
+		if [ -L ./python ]; then
+      		  rm ./python
+    		fi
+		if [ -L ./result ]; then
+      		  rm ./result
+    		fi
+  	    }
+  	    trap cleanup EXIT
           '';
         };
       });
