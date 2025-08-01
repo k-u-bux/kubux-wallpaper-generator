@@ -59,7 +59,7 @@ TOGETHER_API_KEY=your_api_key_here
 - **Preview Images**: Click any thumbnail to preview it in full size
 - **Set Wallpaper**: Select an image and click "Set Wallpaper" to apply it to your desktop
 - **Delete Images**: Remove unwanted images by selecting them and clicking "Delete". Note: the curated wallpaper collection is maintained as a directory of symlinks to the actual image files. Removing an image from the wallpaper collection will not destroy the image file but it will just remove the symlink to it.
-- **Add Images**: Import existing images from your computer by clicking "Add"
+- **Add Images**: Import existing images from your computer by clicking "Add". Note: this will move or copy files, it will create a symlink to the image file.
 - **Examine Images**: Right-click on thumbnails to open the image viewer with zoom capabilities
 
 ### Generating AI Wallpapers
