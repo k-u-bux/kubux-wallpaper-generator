@@ -96,8 +96,8 @@
           
           meta = with pkgs.lib; {
             description = "AI-powered wallpaper creation tool";
-            homepage = "https://github.com/yourusername/kubux-wallpaper-generator";
-            license = licenses.mit;
+            homepage = "https://github.com/kubux/kubux-wallpaper-generator";
+            license = licenses.asl20;
             maintainers = [ ];
             platforms = platforms.linux;
           };
@@ -111,6 +111,7 @@
             imagemagick
             # Additional development tools
 	    jetbrains.pycharm-community
+	    python3Packages.scancode-toolkit
 	    python3Packages.cython
             python3Packages.pip
             python3Packages.black
@@ -118,6 +119,8 @@
           ];
           
           shellHook = ''
+	    export SCANCODE_CACHE=$HOME/.cache/scancode-cache
+	    export SCANCODE_LICENSE_INDEX_CACHE=$HOME/.cache/scancode-license-cache
 	    ln -s $( which python ) python
             echo "Kubux Wallpaper Generator development environment"
             echo "Python with all dependencies available:"
@@ -125,6 +128,8 @@
             echo "  - together (from PyPI)"
             echo ""
             echo "You can now run: python kubux-wallpaper-generator.py"
+	    echo ""
+	    echo "A symlink to the actual python interpreter is provided for PyCharm"
           '';
         };
       });
