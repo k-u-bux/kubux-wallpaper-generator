@@ -77,6 +77,10 @@ TOGETHER_API_KEY=your_api_key_here
 3. The new wallpaper will be automatically added to your collection
 4. Access your previous prompts by clicking "History"
 
+### Use as a dedicated Wallpaper Picker
+
+You can drag the vertical bar between preview area and thumbnails all the way to the left, hiding the preview area. Alternatively, you can drag the horizontal bar underneath the preview area all the way up. When the preview area is gone, selecting a thumbnail with a left-click, will immediately set it as the wallpaper.
+
 ### Customizing the Interface
 
 - **Adjust UI Size**: Use the "UI Size" slider to scale the entire interface

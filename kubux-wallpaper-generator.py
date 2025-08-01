@@ -1390,6 +1390,29 @@ class ImagePickerDialog(tk.Toplevel):
         ttk.Button(self._control_frame, text="Cancel", command=self._on_closing).pack(side="right", padx=(24, 2))
         ttk.Button(self._control_frame, text="Add Selected", command=self._on_add_selected).pack(side="right", padx=24)
 
+    def _adjust_gallery_scroll_position(self, old_scroll_fraction):
+        bbox = self.gallery_canvas.bbox("all")
+
+        if not bbox:
+            self.gallery_canvas.yview_moveto(0.0)
+            return
+    
+        total_content_height = bbox[3] - bbox[1] # y2 - y1
+        visible_canvas_height = self.gallery_canvas.winfo_height()
+        if total_content_height <= visible_canvas_height:
+            self.gallery_canvas.yview_moveto(0.0)
+            return
+
+        old_abs_scroll_pos = old_scroll_fraction * total_content_height
+        max_scroll_abs_pos = total_content_height - visible_canvas_height
+        if max_scroll_abs_pos < 0: # Should not happen if previous check passed, but for safety
+            max_scroll_abs_pos = 0
+
+        new_abs_scroll_pos = min(old_abs_scroll_pos, max_scroll_abs_pos)
+        new_scroll_fraction = new_abs_scroll_pos / total_content_height
+
+        self.gallery_canvas.yview_moveto(new_scroll_fraction)
+        
     def _show_full_screen(self, img_path):
         """Open the image in the fullscreen viewer when right-clicked."""
         try:
@@ -1600,6 +1623,9 @@ class WallpaperApp(tk.Tk):
         except Exception as e:
             print(f"Error saving app settings: {e}")
 
+    def _preview_is_gone(self):
+        return self.paned_window.sashpos(0) == 0 or self.vertical_paned.sashpos(0) == 0
+            
     def _on_closing(self):
         background_worker.stop()
         self._save_prompt_history()
@@ -1847,12 +1873,16 @@ class WallpaperApp(tk.Tk):
         self.gallery_canvas.itemconfig(self.gallery_canvas.find_all()[0], width=event.width)
         background_worker.pause()
         self.gallery_grid._on_resize()
+        self.update_idletasks()
+        self._adjust_gallery_scroll_position(0)
         background_worker.resume()
         
     def _gallery_on_thumbnail_click(self, image_path):
         old_selection = self.gallery_current_selection
         self.gallery_current_selection = image_path
         self._display_image(image_path)
+        if self._preview_is_gone():
+            self._set_current_as_wallpaper()
     
     def _gallery_on_thumbnail_click_right(self, image_path):
         self._delete_image(image_path)
