@@ -1,0 +1,119 @@
+# Kubux Wallpaper Generator
+
+![Kubux Wallpaper Generator](screenshot.png)
+
+A versatile desktop application for managing your wallpaper collection with AI image generation capabilities.
+
+## Features
+
+- **AI-Powered Wallpaper Generation**: Create unique wallpapers using text prompts through Together.ai's FLUX.1-pro model
+- **Wallpaper Collection Management**: Browse, preview, and organize your wallpaper collection
+- **Multi-Desktop Environment Support**: Set wallpapers on most Linux desktop environments
+- **Advanced Image Viewing**: Zoom, pan, and examine images in detail
+- **Simple Import Tool**: Add images from your existing collection with an intuitive file browser
+- **Customizable UI**: Adjust interface scaling and thumbnail sizes to your preference
+- **Prompt History**: Save and reuse your successful generation prompts
+
+## Installation
+
+### From Source (Nix)
+
+Kubux Wallpaper Generator includes a `flake.nix` for easy installation on NixOS and other systems with Nix package manager:
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/kubux-wallpaper-generator
+cd kubux-wallpaper-generator
+
+# Build and install using Nix flakes
+nix profile install .
+```
+
+### From Source (Manual)
+
+If you're not using NixOS, you can install the dependencies manually:
+
+```bash
+# Install dependencies
+pip install pillow requests python-dotenv together
+
+# Run the application
+python kubux-wallpaper-generator.py
+```
+
+## Setting up AI Image Generation
+
+1. Create an account at [Together.ai](https://together.ai)
+2. Generate an API key from your account settings
+3. Create a `.env` file in the application directory with:
+```
+TOGETHER_API_KEY=your_api_key_here
+```
+4. Restart the application to enable AI features
+
+## Usage
+
+### Managing Your Wallpaper Collection
+
+- **Browse Gallery**: Scroll through your wallpaper collection in the right panel
+- **Preview Images**: Click any thumbnail to preview it in full size
+- **Set Wallpaper**: Select an image and click "Set Wallpaper" to apply it to your desktop
+- **Delete Images**: Remove unwanted images by selecting them and clicking "Delete"
+- **Add Images**: Import existing images from your computer by clicking "Add"
+- **Examine Images**: Right-click on thumbnails to open the image viewer with zoom capabilities
+
+### Generating AI Wallpapers
+
+1. Enter a descriptive prompt in the text area
+2. Click "Generate" and wait for the AI to create your wallpaper
+3. The new wallpaper will be automatically added to your collection
+4. Access your previous prompts by clicking "History"
+
+### Customizing the Interface
+
+- **Adjust UI Size**: Use the "UI Size" slider to scale the entire interface
+- **Adjust Thumbnail Size**: Use the "Thumb Size" slider to change thumbnail dimensions
+
+### Keyboard Shortcuts
+
+**In the main window:**
+- Arrow keys: Navigate through thumbnails
+- Page Up/Down: Scroll gallery faster
+
+**In the image viewer:**
+- `+`: Zoom in
+- `-`: Zoom out
+- `0`: Reset to fit window
+- Mouse drag: Pan when zoomed in
+- Mouse wheel: Zoom in/out
+- Esc: Close viewer
+
+## Configuration
+
+The application stores configuration files and cached data in standard XDG directories:
+
+- **Config**: `~/.config/kubux-wallpaper-generator/`
+- **Cache**: `~/.cache/kubux-wallpaper-generator/`
+- **Downloads**: `~/Pictures/kubux-wallpaper-generator/`
+
+## Development
+
+A development environment is included in the flake.nix:
+
+```bash
+# Enter development shell with all dependencies
+nix develop
+
+# Run the application from the development environment
+python kubux-wallpaper-generator.py
+```
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Together.ai for providing the image generation API
+- The Python community for the excellent libraries used in this project
+- NixOS for the reproducible build system
