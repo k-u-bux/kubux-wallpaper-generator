@@ -1647,7 +1647,7 @@ class WallpaperApp(tk.Tk):
         
         1. Create a Together.ai account at https://together.ai
         2. Generate an API key from your account settings
-        3. Create a .env file in the application directory with:
+        3. Create a .env file in your home directory with:
         TOGETHER_API_KEY=your_api_key_here
         
         Then restart the application to access all features.

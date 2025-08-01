@@ -2,7 +2,7 @@
 
 ![Kubux Wallpaper Generator](screenshot.png)
 
-A versatile desktop application for managing your wallpaper collection with AI image generation capabilities.
+A desktop application for managing your wallpaper collection with AI image generation capabilities.
 
 ## Features
 
@@ -12,7 +12,7 @@ A versatile desktop application for managing your wallpaper collection with AI i
 - **Advanced Image Viewing**: Zoom, pan, and examine images in detail
 - **Simple Import Tool**: Add images from your existing collection with an intuitive file browser
 - **Customizable UI**: Adjust interface scaling and thumbnail sizes to your preference
-- **Prompt History**: Save and reuse your successful generation prompts
+- **Prompt History**: Reuse your successful generation prompts
 
 ## Installation
 
@@ -45,7 +45,7 @@ python kubux-wallpaper-generator.py
 
 1. Create an account at [Together.ai](https://together.ai)
 2. Generate an API key from your account settings
-3. Create a `.env` file in the application directory with:
+3. Create a `.env` file in your home directory  with:
 ```
 TOGETHER_API_KEY=your_api_key_here
 ```
@@ -58,7 +58,7 @@ TOGETHER_API_KEY=your_api_key_here
 - **Browse Gallery**: Scroll through your wallpaper collection in the right panel
 - **Preview Images**: Click any thumbnail to preview it in full size
 - **Set Wallpaper**: Select an image and click "Set Wallpaper" to apply it to your desktop
-- **Delete Images**: Remove unwanted images by selecting them and clicking "Delete"
+- **Delete Images**: Remove unwanted images by selecting them and clicking "Delete". Note: the curated wallpaper collection is maintained as a directory of symlinks to the actual image files. Removing an image from the wallpaper collection will not destroy the image file but it will just remove the symlink to it.
 - **Add Images**: Import existing images from your computer by clicking "Add"
 - **Examine Images**: Right-click on thumbnails to open the image viewer with zoom capabilities
 
