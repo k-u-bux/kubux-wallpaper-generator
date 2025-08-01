@@ -302,7 +302,10 @@ def custom_message_dialog(parent, title, message, font=("Arial", 12)):
     
 # --- Together.ai Image Generation ---
 
-def generate_image(prompt, model="black-forest-labs/FLUX.1-pro", width=1184, height=736, steps=28):
+def fallback_show_error(title, message):
+    messagebox.showerror(title, message)
+    
+def generate_image(prompt, model="black-forest-labs/FLUX.1-pro", width=1184, height=736, steps=28, error_callback=fallback_show_error):
     client = Together(api_key=TOGETHER_API_KEY)
     try:
         response = client.images.generate(
@@ -314,7 +317,8 @@ def generate_image(prompt, model="black-forest-labs/FLUX.1-pro", width=1184, hei
         )
         return response.data[0].url
     except Exception as e:
-        messagebox.showerror("API Error", f"Error generating image: {e}")
+        message = f"Failed to download image: {e}"
+        error_callback("API Error", message)
         return None
 
 def download_image(url, file_name):
@@ -328,7 +332,8 @@ def download_image(url, file_name):
         os.symlink(save_path, link_path)
         return link_path
     except Exception as e:
-        messagebox.showerror("Download Error", f"Failed to download image: {e}")
+        message = f"Failed to download image: {e}"
+        error_callback("Download Error", message)
         return None
 
 def unique_name(original_path, category):
