@@ -419,7 +419,7 @@ def download_image(url, file_name, prompt, error_callback=fallback_show_error):
         error_callback("Download Error", message)
         return None
     try:
-        link_path=os.path.join(DOWNLOAD_DIR, os.path.basename(file_name))
+        link_path=os.path.join(IMAGE_DIR, file_name)
         os.symlink(save_path, link_path)
         return link_path
     except Exception as e:
