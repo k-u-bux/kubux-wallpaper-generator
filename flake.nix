@@ -72,9 +72,13 @@
           installPhase = ''
             mkdir -p $out/bin
             mkdir -p $out/share/applications
-            
-            # Copy the Python script
-	    cp probe_font.py $out/bin/probe_font.py
+	    
+	    # Create a proper Python module
+            mkdir -p $out/lib/python3/site-packages/kubux_utils
+  	    cp probe_font.py $out/lib/python3/site-packages/kubux_utils/probe_font.py
+	    echo "# Python module for kubux utilities" > $out/lib/python3/site-packages/kubux_utils/__init__.py
+
+	    # Copy the Python script
             cp kubux-wallpaper-generator.py $out/bin/kubux-wallpaper-generator.py
             chmod +x $out/bin/kubux-wallpaper-generator.py
             
