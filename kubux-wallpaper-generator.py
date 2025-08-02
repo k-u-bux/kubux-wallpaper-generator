@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import probe_font
+
 import hashlib
 import json
 import os
@@ -263,25 +265,35 @@ def generate_image(prompt, model="black-forest-labs/FLUX.1-pro",
         error_callback("API Error", message)
         return None
 
-def download_image(url, file_name, error_callback=fallback_show_error):
-    save_path = os.path.join(DOWNLOAD_DIR,file_name)
+def download_image(url, file_name, prompt, error_callback=fallback_show_error):
+    key = f"{prompt}"
+    prompt_dir = hashlib.sha256(key.encode('utf-8')).hexdigest()
+    save_path = os.path.join(DOWNLOAD_DIR,prompt_dir,file_name)
     tmp_save_path = save_path + "-tmp"
-    link_path = os.path.join(IMAGE_DIR,file_name)
     try:
         response = requests.get(url, stream=True)
         response.raise_for_status() 
+        dir_name = os.path.dirname(save_path)
+        os.makedirs(dir_name, exist_ok=True)
+        prompt_file = os.path.join( dir_name, "prompt.txt")
+        try:
+            with open(prompt_file, 'w') as file:
+                file.write(prompt)
+        except IOError as e:
+            print(f"Error writing prompt {prompt} to file: {e}")
         with open(tmp_save_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
         os.replace(tmp_save_path, save_path)
     except Exception as e:
         try:
-            os.remove(save_path)
             os.remove(tmp_save_path)
+            os.remove(save_path)
         except Exception: pass
         message = f"Failed to download image: {e}"
         error_callback("Download Error", message)
         return None
     try:
+        link_path=os.path.join(DOWNLOAD_DIR, os.path.basename(file_name))
         os.symlink(save_path, link_path)
         return link_path
     except Exception as e:
@@ -1573,8 +1585,9 @@ class WallpaperApp(tk.Tk):
         self._load_prompt_history()
         self.load_app_settings()
         self.gallery_thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * self.current_thumbnail_scale)
-        self.base_font_size = 12
-        self.app_font = tkFont.Font(family="TkDefaultFont", size=int(self.base_font_size * self.current_font_scale))
+        font_name, font_size = probe_font.get_linux_system_ui_font_info()
+        self.base_font_size = font_size
+        self.app_font = tkFont.Font(family=font_name, size=int(self.base_font_size * self.current_font_scale))
         self.geometry(self.initial_geometry)
         
         self._create_widgets()
@@ -1726,7 +1739,7 @@ class WallpaperApp(tk.Tk):
         generate_btn_frame = tk.Frame(controls_frame)
         generate_btn_frame.grid(row=0, column=0, sticky="w")
         self.generate_button = ttk.Button(generate_btn_frame, text="Generate", command=self._on_generate_button_click)
-        self.generate_button.pack(side="left", padx=(2,24))
+        self.generate_button.pack(side="left", padx=(2,8))
         self.history_button = ttk.Button(generate_btn_frame, text="History", command=self._show_prompt_history)
         self.history_button.pack(side="left")
 
@@ -1741,11 +1754,11 @@ class WallpaperApp(tk.Tk):
                 text="Enable AI Generation",
                 command=self.show_api_setup_instructions
             )
-            self.enable_ai_button.pack(side="left", padx=(24,0))
+            self.enable_ai_button.pack(side="left", padx=(8,0))
 
         sliders_frame = tk.Frame(controls_frame)
         sliders_frame.grid(row=0, column=2)
-        ttk.Label(sliders_frame, text="UI Size:").pack(side="left")
+        ttk.Label(sliders_frame, text="UI:").pack(side="left")
 
         self.scale_slider = tk.Scale(
             sliders_frame, from_=0.5, to=2.5, orient="horizontal", 
@@ -1755,7 +1768,7 @@ class WallpaperApp(tk.Tk):
         self.scale_slider.config(command=self._update_ui_scale)
         self.scale_slider.pack(side="left")
         
-        ttk.Label(sliders_frame, text="Thumb Size:", padding="20 0 0 0").pack(side="left")
+        ttk.Label(sliders_frame, text="Thumbs:", padding="20 0 0 0").pack(side="left")
         
         self.thumbnail_scale_slider = tk.Scale(
             sliders_frame, from_=0.5, to=2.5, orient="horizontal",
@@ -1767,9 +1780,9 @@ class WallpaperApp(tk.Tk):
 
         action_btn_frame = tk.Frame(controls_frame)
         action_btn_frame.grid(row=0, column=4, sticky="e")
-        ttk.Button(action_btn_frame, text="Delete", command=self._delete_selected_image).pack(side="left", padx=24)
-        ttk.Button(action_btn_frame, text="Add", command=self._manually_add_images).pack(side="left", padx=24)
-        ttk.Button(action_btn_frame, text="Set Wallpaper", command=self._set_current_as_wallpaper).pack(side="left", padx=(24, 2))
+        ttk.Button(action_btn_frame, text="Delete", command=self._delete_selected_image).pack(side="left", padx=(8,0))
+        ttk.Button(action_btn_frame, text="Add", command=self._manually_add_images).pack(side="left", padx=(8,0))
+        ttk.Button(action_btn_frame, text="Set Wallpaper", command=self._set_current_as_wallpaper).pack(side="left", padx=(8, 2))
 
         users_images = self._image_dir()
         self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, users_images)
@@ -2014,7 +2027,7 @@ class WallpaperApp(tk.Tk):
                                                                                       font=self.app_font))
         if image_url:
             file_name = unique_name("dummy.png","generated")
-            save_path = download_image(image_url, file_name,
+            save_path = download_image(image_url, file_name, prompt,
                                        error_callback=lambda t, m : custom_message_dialog(parent=self,
                                                                                           title=t,
                                                                                           message=m,
