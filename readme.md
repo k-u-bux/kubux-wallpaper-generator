@@ -1,6 +1,6 @@
 # Kubux Wallpaper Generator
 
-![Kubux Wallpaper Generator](screenshots/ai-generation)
+![Kubux Wallpaper Generator](screenshots/ai-generation.png)
 
 A desktop application for managing your wallpaper collection with AI image generation capabilities.
 
@@ -79,7 +79,7 @@ TOGETHER_API_KEY=your_api_key_here
 
 ### Use as a dedicated Wallpaper Picker
 
-![wallpaper picker mode](screenshots/wallpaper-picker)
+![wallpaper picker mode](screenshots/wallpaper-picker.png)
 
 You can drag the vertical bar between preview area and thumbnails all the way to the left, hiding the preview area. Alternatively, you can drag the horizontal bar underneath the preview area all the way up. When the preview area is gone, selecting a thumbnail with a left-click, will immediately set it as the wallpaper.
 
