@@ -210,8 +210,8 @@ def best_dimensions():
     root.destroy()
     best_h = 20;
     best_w = best_h * math.ceil(ratio)
-    for w in range(8,45):
-        for h in range(8,45):
+    for w in range(8,46):
+        for h in range(8,46):
             r = w / h
             if not r < ratio:
                 if not ( best_w / best_h ) < r:
@@ -228,8 +228,8 @@ def good_dimensions(delta=0.05):
     root.destroy()
     best_h = 20;
     best_w = best_h * math.ceil(ratio)
-    for w in range(8,45):
-        for h in range(8,45):
+    for w in range(8,46):
+        for h in range(8,46):
             r = w / h
             if not r < ratio:
                 if not ratio + delta < r:
