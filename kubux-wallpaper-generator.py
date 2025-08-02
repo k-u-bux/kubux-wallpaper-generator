@@ -902,13 +902,20 @@ class DirectoryThumbnailGrid(tk.Frame):
         self._cache_size = 2000
         self._active_widgets = {} # This is a dict: img_path -> (tk.Button, ImageTk.PhotoImage)
         self._last_known_width = -1
-
+        self.pack_propagate(True)
+        self.grid_propagate(True)    
         self.bind("<Configure>", self._on_resize)
 
+    def get_width_and_height(self):
+        self.update_idletasks()
+        width = self.winfo_reqwidth()
+        height = self.winfo_reqheight()
+        return width, height
+        
     def set_size_and_path(self, width, path=IMAGE_DIR):
         self._directory_path = path
         self._item_width = width
-        self.regrid()
+        return self.regrid()
 
     def _get_button(self, img_path, width):
         cache_key = uniq_file_id(img_path, width)
@@ -944,17 +951,18 @@ class DirectoryThumbnailGrid(tk.Frame):
             target_btn, tk_image = self._get_button(img_path, self._item_width)
             self._active_widgets[img_path] = (target_btn, tk_image)
             
-        self._layout_the_grid()
+        return self._layout_the_grid()
 
     def _on_resize(self, event=None):
         self.update_idletasks()
         current_width = self.winfo_width() 
+        current_height = self.winfo_height()
 
         if event is not None and event.width > 0:
             current_width = event.width
             
         if current_width <= 0 or current_width == self._last_known_width:
-            return
+            return current_width, current_height
 
         # print(f"current_width = {current_width}, last known width = {self._last_known_width}")
             
@@ -977,7 +985,9 @@ class DirectoryThumbnailGrid(tk.Frame):
             actual_tk_content_cols = actual_tk_total_cols
 
         if desired_content_cols_for_width != actual_tk_content_cols:
-            self._layout_the_grid()
+            return self._layout_the_grid()
+        
+        return self.get_width_and_height()
 
     def _calculate_columns(self, frame_width):
         if frame_width <= 0: return 1
@@ -1015,11 +1025,11 @@ class DirectoryThumbnailGrid(tk.Frame):
             grid_column = col_idx + 1 
             widget.grid(row=row, column=grid_column, padx=2, pady=2) 
         
-        self.update_idletasks()
-
         while len(self._widget_cache) > self._cache_size:
             self._widget_cache.popitem(last=False)
-        
+
+        return self.get_width_and_height()
+    
     def _configure_button(self, btn, img_path):
         thumbnail_pil = get_or_make_thumbnail(img_path, self._item_width)
         tk_thumbnail = None
@@ -1391,16 +1401,16 @@ class ImagePickerDialog(tk.Toplevel):
         ttk.Button(self._control_frame, text="Add Selected", command=self._on_add_selected).pack(side="right", padx=24)
 
     def _adjust_gallery_scroll_position(self, old_scroll_fraction):
-        bbox = self.gallery_canvas.bbox("all")
+        bbox = self._gallery_canvas.bbox("all")
 
         if not bbox:
-            self.gallery_canvas.yview_moveto(0.0)
+            self._gallery_canvas.yview_moveto(0.0)
             return
     
         total_content_height = bbox[3] - bbox[1] # y2 - y1
-        visible_canvas_height = self.gallery_canvas.winfo_height()
+        visible_canvas_height = self._gallery_canvas.winfo_height()
         if total_content_height <= visible_canvas_height:
-            self.gallery_canvas.yview_moveto(0.0)
+            self._gallery_canvas.yview_moveto(0.0)
             return
 
         old_abs_scroll_pos = old_scroll_fraction * total_content_height
@@ -1411,7 +1421,7 @@ class ImagePickerDialog(tk.Toplevel):
         new_abs_scroll_pos = min(old_abs_scroll_pos, max_scroll_abs_pos)
         new_scroll_fraction = new_abs_scroll_pos / total_content_height
 
-        self.gallery_canvas.yview_moveto(new_scroll_fraction)
+        self._gallery_canvas.yview_moveto(new_scroll_fraction)
         
     def _show_full_screen(self, img_path):
         """Open the image in the fullscreen viewer when right-clicked."""
@@ -1516,7 +1526,11 @@ class ImagePickerDialog(tk.Toplevel):
 
     def _on_canvas_configure(self, event):
         self._gallery_canvas.itemconfig(self._gallery_canvas.find_all()[0], width=event.width)
-        self._gallery_grid._on_resize()
+        old_scroll_fraction = self._gallery_canvas.yview()[0]
+        width, height = self._gallery_grid._on_resize()
+        # print(f"widht = {width}, height = {height}")
+        self._gallery_canvas.configure(scrollregion=(0, 0, width, height))
+        self._adjust_gallery_scroll_position(old_scroll_fraction)
 
     def _bind_mousewheel(self, widget):
         widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
@@ -1854,8 +1868,9 @@ class WallpaperApp(tk.Tk):
         self.gallery_thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * scale)
         background_worker.pause()
         old_scroll_fraction = self.gallery_canvas.yview()[0]
-        self.gallery_grid.set_size_and_path(self.gallery_thumbnail_max_size)
-        self.update_idletasks()
+        width, height = self.gallery_grid.set_size_and_path(self.gallery_thumbnail_max_size)
+        # print(f"widht = {width}, height = {height}")
+        self.gallery_canvas.configure(scrollregion=(0, 0, width, height))
         self._adjust_gallery_scroll_position(old_scroll_fraction)
         background_worker.current_size = self.gallery_thumbnail_max_size
         background_worker.resume()
@@ -1872,9 +1887,12 @@ class WallpaperApp(tk.Tk):
     def _do_gallery_resize_refresh(self, event):
         self.gallery_canvas.itemconfig(self.gallery_canvas.find_all()[0], width=event.width)
         background_worker.pause()
-        self.gallery_grid._on_resize()
+        old_scroll_fraction = self.gallery_canvas.yview()[0]
+        width, height = self.gallery_grid._on_resize()
+        # print(f"widht = {width}, height = {height}")
+        self.gallery_canvas.configure(scrollregion=(0, 0, width, height))
+        self._adjust_gallery_scroll_position(old_scroll_fraction)
         self.update_idletasks()
-        self._adjust_gallery_scroll_position(0)
         background_worker.resume()
         
     def _gallery_on_thumbnail_click(self, image_path):
