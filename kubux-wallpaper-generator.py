@@ -369,7 +369,7 @@ ai_width, ai_height = good_dimensions()
 
 # print(f"width = {ai_width}, height = {ai_height}")
 
-def generate_image(prompt, model="black-forest-labs/FLUX.1-pro",
+def generate_image(prompt, model,
 #                   width=1184, height=736, steps=28,
 #                   width=1248, height=704, # almost 16 : 9
 #                   width=1920, height=1080, # almost 16 : 9
@@ -1769,6 +1769,7 @@ class WallpaperApp(tk.Tk):
         self.current_thumbnail_scale = self.app_settings.get("thumbnail_scale", 1.0)
         self.horizontal_paned_position = self.app_settings.get("horizontal_paned_position", 600)
         self.vertical_paned_position = self.app_settings.get("vertical_paned_position", 400)
+        self.model_string = self.app_settings.get("model_string", "black-forest-labs/FLUX.1-pro")
 
     def save_app_settings(self):
         try:
@@ -1778,6 +1779,7 @@ class WallpaperApp(tk.Tk):
             self.app_settings["ui_scale"] = self.current_font_scale
             self.app_settings["window_geometry"] = self.geometry()
             self.app_settings["thumbnail_scale"] = self.current_thumbnail_scale
+            self.app_settings["model_string"] = self.model_string
             
             if hasattr(self, 'paned_window') and self.paned_window.winfo_exists():
                 self.app_settings["horizontal_paned_position"] = self.paned_window.sashpos(0)
@@ -2146,7 +2148,7 @@ class WallpaperApp(tk.Tk):
         threading.Thread(target=self._run_generation_task, args=(prompt,), daemon=True).start()
 
     def _run_generation_task(self, prompt):
-        image_url = generate_image(prompt,
+        image_url = generate_image(prompt, model=self.model_string,
                                    error_callback=lambda t, m : custom_message_dialog(parent=self,
                                                                                       title=t,
                                                                                       message=m,

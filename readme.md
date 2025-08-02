@@ -109,6 +109,8 @@ The application stores configuration files and cached data in standard XDG direc
 - **Cache**: `~/.cache/kubux-wallpaper-generator/`
 - **Downloads**: `~/Pictures/kubux-wallpaper-generator/`
 
+You can change the AI model in the app settings file in the config directory. It cannot be done from the UI.
+
 ## Development
 
 A development environment is included in the flake.nix:
