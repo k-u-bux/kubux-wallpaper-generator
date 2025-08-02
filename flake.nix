@@ -66,13 +66,13 @@
           
           src = ./.;
           
-          buildInputs = [ pythonEnv ];
+          buildInputs = [ pythonEnv pkgs.imagemagick ];
           nativeBuildInputs = [ pkgs.makeWrapper ];
           
           installPhase = ''
             mkdir -p $out/bin
             mkdir -p $out/share/applications
-            mkdir -p $out/share/icons/hicolor/{16x16,22x22,24x24,32x32,48x48,64x64,128x128,256x256}/apps
+            mkdir -p $out/share/icons/hicolor/{16x16,22x22,24x24,32x32,48x48,64x64,128x128,19256x256}/apps
             
             # Copy the Python script
             cp kubux-wallpaper-generator.py $out/bin/kubux-wallpaper-generator.py
@@ -86,11 +86,10 @@
             # Copy desktop file
             cp kubux-wallpaper-generator.desktop $out/share/applications/
             
-            # Copy icons to all size directories
-            for size in 16x16 22x22 24x24 32x32 48x48 64x64 128x128 256x256; do
-              if [ -f hicolor/$size/apps/kubux-wallpaper-generator.png ]; then
-                cp hicolor/$size/apps/kubux-wallpaper-generator.png $out/share/icons/hicolor/$size/apps/
-              fi
+            # Make icons for all sizes
+            for size in 16x16 22x22 24x24 32x32 48x48 64x64 96x96 128x128 192x192 256x256; do
+ 	      mkdir -p $out/share/icons/hicolor/{16x16,22x22,24x24,32x32,48x48,64x64,128x128,19256x256}/apps
+	      magick convert app_icon.png -resize $size $out/share/icons/hicolor/$size/apps/kubux-wallpaper-generator.png
             done
           '';
           
