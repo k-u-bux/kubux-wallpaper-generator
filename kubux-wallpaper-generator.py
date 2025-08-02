@@ -265,14 +265,19 @@ def generate_image(prompt, model="black-forest-labs/FLUX.1-pro",
 
 def download_image(url, file_name, error_callback=fallback_show_error):
     save_path = os.path.join(DOWNLOAD_DIR,file_name)
+    tmp_save_path = save_path + "-tmp"
     link_path = os.path.join(IMAGE_DIR,file_name)
     try:
         response = requests.get(url, stream=True)
         response.raise_for_status() 
-        with open(save_path, 'wb') as f:
+        with open(tmp_save_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
+        os.replace(tmp_save_path, save_path)
     except Exception as e:
-        os.remove(save_path)
+        try:
+            os.remove(save_path)
+            os.remove(tmp_save_path)
+        except Exception: pass
         message = f"Failed to download image: {e}"
         error_callback("Download Error", message)
         return None
