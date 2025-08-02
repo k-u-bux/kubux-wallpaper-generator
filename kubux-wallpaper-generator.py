@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import probe_font
+try:
+    # Try importing from the module structure (used in packaged version)
+    from kubux_utils import probe_font
+except ImportError:
+    # Fall back to local import (used in development)
+    import probe_font
 
 import hashlib
 import json

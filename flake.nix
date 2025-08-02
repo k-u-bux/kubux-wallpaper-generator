@@ -85,8 +85,9 @@
             # Create wrapper using makeWrapper for proper desktop integration
             makeWrapper ${pythonEnv}/bin/python $out/bin/kubux-wallpaper-generator \
               --add-flags "$out/bin/kubux-wallpaper-generator.py" \
-              --set-default TMPDIR "/tmp"
-            
+              --set-default TMPDIR "/tmp" \
+              --prefix PYTHONPATH : $out/lib/python3/site-packages
+	    
             # Copy desktop file
             cp kubux-wallpaper-generator.desktop $out/share/applications/
             
