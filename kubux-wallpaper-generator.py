@@ -264,19 +264,27 @@ def generate_image(prompt, model="black-forest-labs/FLUX.1-pro",
         return None
 
 def download_image(url, file_name, error_callback=fallback_show_error):
+    save_path = os.path.join(DOWNLOAD_DIR,file_name)
+    link_path = os.path.join(IMAGE_DIR,file_name)
     try:
-        save_path = os.path.join(DOWNLOAD_DIR,file_name)
-        link_path = os.path.join(IMAGE_DIR,file_name)
         response = requests.get(url, stream=True)
         response.raise_for_status() 
         with open(save_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
-        os.symlink(save_path, link_path)
-        return link_path
     except Exception as e:
+        os.remove(save_path)
         message = f"Failed to download image: {e}"
         error_callback("Download Error", message)
         return None
+    try:
+        os.symlink(save_path, link_path)
+        return link_path
+    except Exception as e:
+        os.remove(link_path)
+        message = f"Failed to link image: {e}"
+        error_callback("File system error,", message)
+        return None
+    
 
 # --- Wallpaper Setting Functions (Platform-Specific) ---
 
