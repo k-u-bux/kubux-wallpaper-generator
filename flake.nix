@@ -73,11 +73,6 @@
             mkdir -p $out/bin
             mkdir -p $out/share/applications
 	    
-	    # Create a proper Python module
-            mkdir -p $out/lib/python3/site-packages/kubux_utils
-  	    cp probe_font.py $out/lib/python3/site-packages/kubux_utils/probe_font.py
-	    echo "# Python module for kubux utilities" > $out/lib/python3/site-packages/kubux_utils/__init__.py
-
 	    # Copy the Python script
             cp kubux-wallpaper-generator.py $out/bin/kubux-wallpaper-generator.py
             chmod +x $out/bin/kubux-wallpaper-generator.py
@@ -85,8 +80,7 @@
             # Create wrapper using makeWrapper for proper desktop integration
             makeWrapper ${pythonEnv}/bin/python $out/bin/kubux-wallpaper-generator \
               --add-flags "$out/bin/kubux-wallpaper-generator.py" \
-              --set-default TMPDIR "/tmp" \
-              --prefix PYTHONPATH : $out/lib/python3/site-packages
+              --set-default TMPDIR "/tmp"
 	    
             # Copy desktop file
             cp kubux-wallpaper-generator.desktop $out/share/applications/
