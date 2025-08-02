@@ -74,6 +74,7 @@
             mkdir -p $out/share/applications
             
             # Copy the Python script
+	    cp probe_font.ps $out/bin/probe_font.py
             cp kubux-wallpaper-generator.py $out/bin/kubux-wallpaper-generator.py
             chmod +x $out/bin/kubux-wallpaper-generator.py
             
