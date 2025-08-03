@@ -50,7 +50,7 @@ SUPPORTED_IMAGE_EXTENSIONS = (
     
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, ".config", "kubux-wallpaper-generator")
-CACHE_DIR = os.path.join(HOME_DIR, ".cache", "kubux-wallpaper-generator")
+CACHE_DIR = os.path.join(HOME_DIR, ".cache", "kubux-thumbnail-cache")
 THUMBNAIL_CACHE_ROOT = os.path.join(CACHE_DIR, "thumbnails")
 DOWNLOAD_DIR = os.path.join(HOME_DIR, "Pictures", "kubux-wallpaper-generator")
 IMAGE_DIR = os.path.join(CONFIG_DIR, "images")
