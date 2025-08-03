@@ -21,25 +21,21 @@ A desktop application for managing your wallpaper collection with AI image gener
 Kubux Wallpaper Generator includes a `flake.nix` for easy installation on NixOS and other systems with Nix package manager:
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/kubux-wallpaper-generator
-cd kubux-wallpaper-generator
-
-# Build and install using Nix flakes
-nix profile install .
+nix profile install github:k-u-bux/kubux-wallpaper-generator
 ```
 
-Alternatively, you can run or install by pointing nix directly to the project url.
+Alternatively, you can test drive the app:
 
+```bash
+nix run github:k-u-bux/kubux-wallpaper-generator
+```
 
 ### From Source (Manual, untested)
 
-If you're not using NixOS, you can install the dependencies manually:
+If you're not using NixOS, you could clone the repo and deal with the dependencies yourself. The following might work inside the repo:
 
 ```bash
-# Install dependencies
 pip install pillow requests python-dotenv together
-
 # Run the application
 python kubux-wallpaper-generator.py
 ```
