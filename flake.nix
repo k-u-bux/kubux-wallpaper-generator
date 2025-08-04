@@ -72,11 +72,13 @@
           installPhase = ''
             mkdir -p $out/bin
             mkdir -p $out/share/applications
+	    mkdir -p $out/share/man/man1
 	    
-	    # Copy the Python script
+	    # Copy
             cp kubux-wallpaper-generator.py $out/bin/kubux-wallpaper-generator.py
             chmod +x $out/bin/kubux-wallpaper-generator.py
-            
+            cp kubux-wallpaper-generator.1 $out/share/man/man1/kubux-wallpaper-generator.1
+	    
             # Create wrapper using makeWrapper for proper desktop integration
             makeWrapper ${pythonEnv}/bin/python $out/bin/kubux-wallpaper-generator \
               --add-flags "$out/bin/kubux-wallpaper-generator.py" \
