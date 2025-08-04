@@ -1,77 +1,147 @@
-.TH KUBUX-WALLPAPER-GENERATOR 1 "May 2023" "Version 1.0.0" "User Commands"
+.TH KUBUX-WALLPAPER-GENERATOR 1 "June 2025" "Version 1.0" "User Commands"
 .SH NAME
-kubux-wallpaper-generator \- AI-powered wallpaper generator using NixOS
+kubux-wallpaper-generator \- AI-powered wallpaper generator and manager for Linux
 .SH SYNOPSIS
 .B kubux-wallpaper-generator
 .SH DESCRIPTION
+.B kubux-wallpaper-generator
+is a graphical application for generating, managing, and setting desktop wallpapers. It features AI-powered image generation using Together.ai, image previews, and collection management capabilities.
 .PP
-\fBkubux-wallpaper-generator\fR is a GUI application that generates custom wallpapers using AI. 
-It allows users to create, customize, and manage wallpapers with a simple interface.
-The application uses Together AI or OpenAI for image generation.
+The application provides an easy-to-use interface for creating custom wallpapers through text prompts, browsing your wallpaper collection, and applying wallpapers to your desktop environment.
 .SH FEATURES
+.SS Image Generation
+.IP \(bu 4
+AI-powered image generation using text prompts
+.IP \(bu 4
+Prompt history for reusing successful prompts
+.IP \(bu 4
+Customizable image dimensions optimized for your screen resolution
+.IP \(bu 4
+Downloads generated images to your collection
+.SS Image Management
+.IP \(bu 4
+Preview wallpapers before applying them
+.IP \(bu 4
+Organize wallpapers in a visual gallery
+.IP \(bu 4
+Import existing images from your system
+.IP \(bu 4
+Delete unwanted wallpapers
+.SS Wallpaper Application
+.IP \(bu 4
+Set any image in your collection as the desktop wallpaper
+.IP \(bu 4
+Support for multiple Linux desktop environments
+.IP \(bu 4
+Automatic sizing to fit your display
+.SS User Interface
+.IP \(bu 4
+Adjustable UI scaling for different display resolutions
+.IP \(bu 4
+Customizable thumbnail sizes
+.IP \(bu 4
+Breadcrumb navigation for browsing folders
+.IP \(bu 4
+Fullscreen image previews
+.SH ENVIRONMENT
+The application uses the following environment variables:
 .TP
-\fBAI Image Generation\fR
-Generate images from text prompts using Together AI or OpenAI.
-.TP
-\fBImage Customization\fR
-Adjust aspect ratio, scaling, and positioning of generated images.
-.TP
-\fBCaptioning\fR
-Add custom text captions with adjustable font, size, position, and color.
-.TP
-\fBSaving and Export\fR
-Save images to a gallery and export them as wallpapers.
-.TP
-\fBLight and Dark Themes\fR
-Support for both light and dark themes to match your desktop environment.
-.SH OPTIONS
-No command-line options are available. All functionality is accessed through the GUI.
-.SH INTERFACE
-.TP
-\fBPrompt Area\fR
-Enter text descriptions for the AI to generate an image from.
-.TP
-\fBModel Selection\fR
-Choose between different AI models for image generation.
-.TP
-\fBSettings Panel\fR
-Adjust image parameters including aspect ratio and captioning options.
-.TP
-\fBGallery\fR
-Browse and manage previously generated images.
-.SH CONFIGURATION
-.PP
-The application requires API keys for using Together AI or OpenAI services. 
-These can be set in the application settings or through environment variables:
-.TP
-\fBTOGETHER_API_KEY\fR
-Your Together AI API key.
-.TP
-\fBOPENAI_API_KEY\fR
-Your OpenAI API key.
+.B TOGETHER_API_KEY
+API key for Together.ai image generation service
 .SH FILES
 .TP
-\fB~/.config/kubux-wallpaper-generator/config.json\fR
-Configuration file containing user preferences.
+.I ~/.config/kubux-wallpaper-generator/
+Configuration directory
 .TP
-\fB~/.local/share/kubux-wallpaper-generator/gallery/\fR
-Directory containing saved wallpaper images.
-.SH EXAMPLES
+.I ~/.config/kubux-wallpaper-generator/app_settings.json
+Application settings
+.TP
+.I ~/.config/kubux-wallpaper-generator/prompt_history.json
+History of used prompts
+.TP
+.I ~/.config/kubux-wallpaper-generator/images/
+Symlinks to wallpaper images
+.TP
+.I ~/.cache/kubux-thumbnail-cache/
+Thumbnail cache directory
+.TP
+.I ~/Pictures/kubux-wallpaper-generator/
+Downloaded AI-generated images
+.SH SETUP
+To enable AI image generation features:
 .PP
-Start the application and enter a prompt like "mountain landscape with snow-capped peaks at sunset" to generate a wallpaper.
+1. Create a Together.ai account at https://together.ai
+.br
+2. Generate an API key from your account settings
+.br
+3. Create a .env file in your home directory containing:
+.br
+   TOGETHER_API_KEY=your_api_key_here
+.br
+4. Restart the application
 .PP
-Adjust the aspect ratio to match your display (16:9, 21:9, etc.).
+Without the API key, you can still use the application to manage and set existing wallpapers, but AI generation features will be disabled.
+.SH DESKTOP ENVIRONMENT SUPPORT
+Wallpaper setting is supported on most common Linux desktop environments:
 .PP
-Add a caption with your favorite quote and position it in the corner of the image.
+.IP \(bu 4
+GNOME
+.IP \(bu 4
+KDE Plasma
+.IP \(bu 4
+XFCE
+.IP \(bu 4
+Cinnamon
+.IP \(bu 4
+MATE
+.IP \(bu 4
+LXQt/LXDE
+.IP \(bu 4
+i3/Sway (via feh)
 .PP
-Save the image and set it as your desktop wallpaper.
-.SH BUGS
-.PP
-Please report bugs to https://github.com/k-u-bux/kubux-wallpaper-generator/issues
+For other window managers, it attempts to use common wallpaper setting tools like feh or nitrogen.
+.SH CONTROLS
+.SS Keyboard Shortcuts
+.TP
+.B Up/Down
+Scroll gallery
+.TP
+.B Page Up/Down
+Scroll gallery one page
+.TP
+.B Home/End
+Jump to beginning/end of gallery
+.TP
+.B Enter
+(in prompt field) Generate image
+.SS Image Viewer Shortcuts
+.TP
+.B +/-
+Zoom in/out
+.TP
+.B 0
+Reset zoom to fit window
+.TP
+.B F11
+Toggle fullscreen mode
+.TP
+.B Escape
+Close viewer
+.TP
+.B Mouse wheel
+Zoom in/out
+.TP
+.B Click and drag
+Pan image when zoomed
+.SH DIAGNOSTICS
+If you encounter issues, check for error messages in the terminal output.
+.SH COPYRIGHT
+Copyright 2025 Kai-Uwe Bux.
+.br
+Licensed under the Apache License, Version 2.0.
 .SH AUTHOR
 Kai-Uwe Bux
-.SH "SEE ALSO"
-.PP
-Project homepage: https://github.com/k-u-bux/kubux-wallpaper-generator
-.PP
-NixOS packages: https://search.nixos.org/packages
+.SH SEE ALSO
+.BR feh (1),
+.BR nitrogen (1),
+.BR gsettings (1)
