@@ -266,7 +266,9 @@ def get_or_make_thumbnail(img_path, thumbnail_max_size):
     # if we are here, caching was not successful
     try:
         pil_image_thumbnail = resize_image( get_full_size_image(img_path), thumbnail_max_size, thumbnail_max_size )
-        pil_image_thumbnail.save(cached_thumbnail_path) 
+        tmp_path = os.path.join(os.path.dirname(cached_thumbnail_path), "tmp-" + os.path.basename(cached_thumbnail_path))
+        pil_image_thumbnail.save(tmp_path)
+        os.replace(tmp_path, cached_thumbnail_path)
         PIL_CACHE[cache_key] = pil_image_thumbnail
     except Exception as e:
         print(f"Error loading of / creating thumbnail for {img_path}: {e}")
