@@ -212,14 +212,15 @@ def resize_image(image, target_width, target_height):
 
 def uniq_file_id(img_path, width=-1):
     try:
-        mtime = os.path.getmtime(img_path)
+        real_path = os.path.realpath(img_path)
+        mtime = os.path.getmtime(real_path)
     except FileNotFoundError:
-        print(f"Error: Original image file not found for thumbnail generation: {img_path}")
+        print(f"Error: Original image file not found for thumbnail generation: {img_path} resolves to {real_path}")
         return None
     except Exception as e:
-        print(f"Warning: Could not get modification time for {img_path}: {e}. Using a default value.")
+        print(f"Warning: Could not get modification time for {real_path} (from {img_path}): {e}. Using a default value.")
         mtime = 0
-    key = f"{img_path}_{width}_{mtime}"
+    key = f"{real_path}_{width}_{mtime}"
     return hashlib.sha256(key.encode('utf-8')).hexdigest()
 
 PIL_CACHE = OrderedDict()
