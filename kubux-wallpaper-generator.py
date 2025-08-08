@@ -1794,7 +1794,7 @@ class WallpaperApp(tk.Tk):
             print(f"Error saving app settings: {e}")
 
     def _preview_is_gone(self):
-        return self.paned_window.sashpos(0) == 0 or self.vertical_paned.sashpos(0) == 0
+        return self.paned_window.sashpos(0) <= 5 or self.vertical_paned.sashpos(0) <= 5
             
     def _on_closing(self):
         background_worker.stop()
