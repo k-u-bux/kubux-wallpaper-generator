@@ -37,7 +37,11 @@ from together import Together
 
 # Load environment variables
 load_dotenv()
+
 # --- Configuration ---
+
+RELIEF="raised"
+
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 ai_features_enabled = bool(TOGETHER_API_KEY)
 
@@ -286,7 +290,7 @@ def make_tk_image( pil_image ):
 def fallback_show_error(title, message):
     messagebox.showerror(title, message)
     
-def custom_message_dialog(parent, title, message, font=("Arial", 12)):
+def custom_message_dialog(parent, title, message, font=("Arial",12)):
     dialog = tk.Toplevel(parent)
     dialog.title(title)
     dialog.transient(parent)  # Set to be on top of the parent window
@@ -373,9 +377,6 @@ ai_width, ai_height = good_dimensions()
 # print(f"width = {ai_width}, height = {ai_height}")
 
 def generate_image(prompt, model,
-#                   width=1184, height=736, steps=28,
-#                   width=1248, height=704, # almost 16 : 9
-#                   width=1920, height=1080, # almost 16 : 9
                    width=ai_width, height=ai_height,
                    steps=28,
                    error_callback=fallback_show_error):
@@ -654,6 +655,14 @@ def settle_geometry(widget):
 
 
 # --- widgets ---
+
+def get_to_root(widget):
+    while widget.master is not None:
+        widget = widget.master
+    return widget
+
+def get_font(widget):
+    return get_to_root(widget).app_font
 
 class FullscreenImageViewer(tk.Toplevel):
     """
@@ -1220,8 +1229,10 @@ class DirectoryThumbnailGrid(tk.Frame):
 
 
 class LongMenu(tk.Toplevel):
-    def __init__(self, master, default_option, other_options, font=None, x_pos=None, y_pos=None):
+    def __init__(self, master, default_option, other_options, font=None, x_pos=None, y_pos=None, 
+                 relief=RELIEF, pos="bottom", n_lines=12):
         super().__init__(master)
+        self.withdraw()
         self.overrideredirect(True) # Remove window decorations (title bar, borders)
         self.transient(master)      # Tie to master window
         # self.grab_set()             # Make it modal, redirect all input here
@@ -1229,20 +1240,26 @@ class LongMenu(tk.Toplevel):
         self.result = default_option
         self._options = other_options
 
-        self._app_font = font if font else ("TkDefaultFont", 12, "normal")
+        self._main_font = font if font else get_font(self)
 
-        self._listbox_frame = ttk.Frame(self)
+        self._listbox_frame = tk.Frame(self)
         self._listbox_frame.pack(padx=10, pady=10, fill="both", expand=True)
 
+        max_length = 0
+        for line in self._options:
+            max_length = max( max_length, len(line) )
+        max_length = max_length + 5
         self._listbox = tk.Listbox(
             self._listbox_frame,
             selectmode=tk.SINGLE,
-            font=self._app_font,
-            height=15
+            font=self._main_font,
+            height=n_lines,
+            width=max_length
         )
         self._listbox.pack(side="left", fill="both", expand=True)
 
-        self._scrollbar = ttk.Scrollbar(self._listbox_frame, orient="vertical", command=self._listbox.yview)
+        self._scrollbar = tk.Scrollbar(self._listbox_frame, relief=relief,
+                                       orient="vertical", command=self._listbox.yview)
         self._scrollbar.pack(side="right", fill="y")
         self._listbox.config(yscrollcommand=self._scrollbar.set)
 
@@ -1250,23 +1267,26 @@ class LongMenu(tk.Toplevel):
         for option_name in other_options:
             self._listbox.insert(tk.END, option_name)
 
-        # --- Bindings ---
         self._listbox.bind("<<ListboxSelect>>", self._on_listbox_select)
         self._listbox.bind("<Double-Button-1>", self._on_double_click) # Double-click to select and close
         self.bind("<Return>", self._on_return_key) # Enter key to select and close
         self.bind("<Escape>", self._cancel) # Close on Escape key
         self.bind("<FocusOut>", self._on_focus_out)
         
-        # --- Positioning and Focus ---
         self.update_idletasks()
-        self.grab_set() 
-
+        master_h = master.winfo_height()
         if x_pos is None or y_pos is None:
             master_x = master.winfo_x()
             master_y = master.winfo_y()
-            master_h = master.winfo_height()
             x_pos = master_x
             y_pos = master_y + master_h
+        
+        if pos == "top":
+            y_pos = y_pos - self._listbox.winfo_reqheight()
+        elif pos == "center":
+            y_pos = y_pos - int(0.5 * self._listbox.winfo_reqheight())
+        if y_pos < 0: 
+            y_pos = 0
 
         screen_width = self.winfo_screenwidth()
         popup_w = self.winfo_width()
@@ -1279,7 +1299,9 @@ class LongMenu(tk.Toplevel):
         if y_pos + popup_h > screen_height:
             y_pos = screen_height - popup_h - 5 # 5 pixels margin
             
-        self.geometry(f"+{int(x_pos)}+{int(y_pos)}")        # Center the window relative to its master
+        self.geometry(f"+{int(x_pos)}+{int(y_pos)}")
+        self.deiconify()
+        self.grab_set() 
 
         self._listbox.focus_set() # Set focus to the _listbox for immediate keyboard navigation
         self.wait_window(self) # Make the dialog modal until it's destroyed
@@ -1298,6 +1320,8 @@ class LongMenu(tk.Toplevel):
         if selected_indices:
             # Store the selected directory name, not the full path yet
             self.result = self._options[selected_indices[0]]
+        else:
+            self.result = self._options[self._listbox.index(tk.ACTIVE)]
         self.destroy()
 
     def _cancel(self, event=None):
@@ -1312,7 +1336,7 @@ class LongMenu(tk.Toplevel):
 
         
 class BreadCrumNavigator(ttk.Frame):
-    def __init__(self, master, on_navigate_callback=None, font=None,
+    def __init__(self, master, on_navigate_callback=None, font=None, relief=RELIEF,
                  long_press_threshold_ms=400, drag_threshold_pixels=5):
         
         super().__init__(master)
@@ -1327,21 +1351,16 @@ class BreadCrumNavigator(ttk.Frame):
         self._press_x = 0
         self._press_y = 0
         self._active_button = None 
+        self.relief=relief
 
-        if isinstance(font, tkFont.Font):
-            self.btn_font = (
-                font.actual('family'),
-                font.actual('size'),
-                font.actual('weight') 
-            )
-        elif isinstance(font, (tuple, str)):
-            self.btn_font = font
+        if font is None:
+            self.font = get_font(self)
         else:
-            self.btn_font = ("TkDefaultFont", 10, "normal") 
+            self.font = font
 
     def set_path(self, path):
         if not os.path.isdir(path):
-            print(f"Warning: Path '{path}' is not a directory. Cannot set breadcrumbs.")
+            log_debug(f"Warning: Path '{path}' is not a directory. Cannot set breadcrumbs.")
             return
 
         self._current_path = os.path.normpath(path)
@@ -1359,28 +1378,32 @@ class BreadCrumNavigator(ttk.Frame):
             btn_text = os.path.basename(path)
             if btn_text == '': 
                 btn_text = os.path.sep
-            btn = tk.Button(self, text=btn_text, font=self.btn_font)
+            btn = tk.Button(self, text=btn_text, relief=self.relief, font=self.font)
             btn.path = path
             btn.bind("<ButtonPress-1>", self._on_button_press)
             btn.bind("<ButtonRelease-1>", self._on_button_release)
+            btn.bind("<ButtonPress-3>", self._on_button_press_menu)
             btn.bind("<Motion>", self._on_button_motion)
             btn_list.insert( 0, btn )
 
         btn_text="//"
-        btn = tk.Button(self, text=btn_text, font=self.btn_font)
+        btn = tk.Button(self, text=btn_text, relief=self.relief, font=self.font)
         btn.path = current_display_path
         btn.bind("<ButtonPress-1>", self._on_button_press)
         btn.bind("<ButtonRelease-1>", self._on_button_release)
+        btn.bind("<ButtonPress-3>", self._on_button_press_menu)
         btn.bind("<Motion>", self._on_button_motion)
         btn_list.insert( 0, btn )
 
-        for i, btn in enumerate( btn_list ):
-            if i > 0:
-                ttk.Label(self, text=" / ").pack(side="left")
-            if i + 1 == len( btn_list ):
-                 btn.bind("<ButtonPress-1>", self._on_button_press_menu)
-            btn.pack(side="left")            
-            
+        dummy_frame = tk.Frame(self)
+        dummy_frame.pack(side="right", fill="x", expand=True)
+        for i, btn in enumerate( reversed(btn_list) ):
+            btn.pack(side="right")
+            if i + 1< len(btn_list):
+                ttk.Label(self, text="/").pack(side="right")
+            if i == 0:
+                btn.bind("<ButtonPress-1>", self._on_button_press_menu)
+
     def _trigger_navigate(self, path):
         if self._on_navigate_callback:
             self._on_navigate_callback(path)
@@ -1450,9 +1473,11 @@ class BreadCrumNavigator(ttk.Frame):
                 button,
                 None,
                 sorted_subdirs,
-                font=self.btn_font,
+                font=self.font,
                 x_pos=menu_x,
-                y_pos=menu_y
+                y_pos=menu_y,
+                n_lines = 15,
+                pos="top"
             )
             selected_name = selector_dialog.result
             if selected_name:
@@ -1474,8 +1499,6 @@ class ImagePickerDialog(tk.Toplevel):
     def __init__(self, master, thumbnail_max_size, image_dir):
         super().__init__(master)
         self.withdraw()
-
-        self._master = master
         self._thumbnail_max_size = thumbnail_max_size
         self._current_image_dir = image_dir
         self.selected_files = []
@@ -1500,7 +1523,7 @@ class ImagePickerDialog(tk.Toplevel):
         self.deiconify()
         self._load_geometry()
         self.title("Add Images to Collection")
-        self.transient(self._master)
+        self.transient(self.master)
         self.grab_set()
         self._browse_directory(self._current_image_dir)
         self._gallery_canvas.yview_moveto(0.0)
@@ -1546,7 +1569,7 @@ class ImagePickerDialog(tk.Toplevel):
         self.breadcrumb_nav = BreadCrumNavigator(
             self._control_frame, # Parent is the _control_frame
             on_navigate_callback=self._browse_directory, # This callback will update the grid and breadcrumbs
-            font=self._master.app_font, # Use the app's font
+            font=self.master.app_font, # Use the app's font
         )
         self.breadcrumb_nav.pack(side="left", fill="x", expand=True, padx=5)
 
@@ -1584,7 +1607,7 @@ class ImagePickerDialog(tk.Toplevel):
             viewer = FullscreenImageViewer(self, img_path, title=img_path, start_fullscreen=True)
             viewer.grab_set()  # Make the viewer modal
         except Exception as e:
-            custom_message_dialog(parent=self, title="Error", message=f"Could not open image: {e}", font=self._master.app_font)
+            custom_message_dialog(parent=self, title="Error", message=f"Could not open image: {e}", font=self.master.app_font)
         
     def _configure_picker_button(self, btn, img_path, tk_thumbnail):
          btn.config(
@@ -1604,10 +1627,10 @@ class ImagePickerDialog(tk.Toplevel):
 
     def _center_toplevel_window(self, toplevel_window):
         toplevel_window.update_idletasks()
-        master_x = self._master.winfo_x()
-        master_y = self._master.winfo_y()
-        master_w = self._master.winfo_width()
-        master_h = self._master.winfo_height()
+        master_x = self.master.winfo_x()
+        master_y = self.master.winfo_y()
+        master_w = self.master.winfo_width()
+        master_h = self.master.winfo_height()
 
         popup_w = toplevel_window.winfo_width()
         popup_h = toplevel_window.winfo_height()
@@ -1622,16 +1645,16 @@ class ImagePickerDialog(tk.Toplevel):
         self.hide()
 
     def _save_geometry(self):
-        if hasattr(self._master, 'app_settings'):
+        if hasattr(self.master, 'app_settings'):
             self.update_idletasks()
             geometry = self.geometry()
-            self._master.app_settings['image_picker_dialog_geometry'] = geometry
-            self._master.app_settings['image_picker_last_directory'] = self._current_image_dir
-            self._master.save_app_settings()
+            self.master.app_settings['image_picker_dialog_geometry'] = geometry
+            self.master.app_settings['image_picker_last_directory'] = self._current_image_dir
+            self.master.save_app_settings()
 
     def _load_geometry(self):
-        if hasattr(self._master, 'app_settings'):
-            geometry_str = self._master.app_settings.get('image_picker_dialog_geometry')
+        if hasattr(self.master, 'app_settings'):
+            geometry_str = self.master.app_settings.get('image_picker_dialog_geometry')
             if geometry_str:
                 try:
                     self.geometry(geometry_str)
@@ -1652,7 +1675,7 @@ class ImagePickerDialog(tk.Toplevel):
 
     def _browse_directory(self, path):
         if not os.path.isdir(path):
-            custom_message_dialog(parent=self, title="Error", message=f"Invalid directory: {path}", font=self._master.app_font)
+            custom_message_dialog(parent=self, title="Error", message=f"Invalid directory: {path}", font=self.master.app_font)
             return
         
         self._current_image_dir = path
@@ -1675,7 +1698,7 @@ class ImagePickerDialog(tk.Toplevel):
 
     def _on_add_selected(self):
         self._save_geometry()
-        self._master.add_multiple_images_as_symlinks(self.selected_files)
+        self.master.add_multiple_images_as_symlinks(self.selected_files)
         self.hide()
 
     def _on_canvas_configure(self, event):
@@ -1783,11 +1806,8 @@ class WallpaperApp(tk.Tk):
             self.app_settings["window_geometry"] = self.geometry()
             self.app_settings["thumbnail_scale"] = self.current_thumbnail_scale
             self.app_settings["model_string"] = self.model_string
-            
-            if hasattr(self, 'paned_window') and self.paned_window.winfo_exists():
-                self.app_settings["horizontal_paned_position"] = self.paned_window.sashpos(0)
-            if hasattr(self, 'vertical_paned') and self.vertical_paned.winfo_exists():
-                self.app_settings["vertical_paned_position"] = self.vertical_paned.sashpos(0)
+            self.app_settings["horizontal_paned_position"] = self.paned_window.sashpos(0)
+            self.app_settings["vertical_paned_position"] = self.vertical_paned.sashpos(0)
 
             with open(APP_SETTINGS_FILE, 'w') as f:
                 json.dump(self.app_settings, f, indent=4)
