@@ -451,6 +451,15 @@ def download_image(url, file_name, prompt, error_callback=fallback_show_error):
         message = f"Failed to download image: {e}"
         error_callback("Download Error", message)
         return None
+
+    try:
+        link_path=os.path.join(DOWNLOAD_DIR, file_name)
+        os.symlink(save_path, link_path)
+    except Exception as e:
+        os.remove(link_path)
+        message = f"Failed to link image: {e}"
+        error_callback("File system error,", message)
+
     try:
         link_path=os.path.join(IMAGE_DIR, file_name)
         os.symlink(save_path, link_path)
