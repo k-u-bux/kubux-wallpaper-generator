@@ -1253,7 +1253,6 @@ class DirectoryThumbnailGrid(tk.Frame):
             self._widget_cache.popitem(last=False)
 
         # log_debug("done with layout.")
-        return None
         return self.get_width_and_height()
     
     def destroy(self):
@@ -1837,6 +1836,7 @@ class WallpaperApp(tk.Tk):
         self.horizontal_paned_position = self.app_settings.get("horizontal_paned_position", 600)
         self.vertical_paned_position = self.app_settings.get("vertical_paned_position", 400)
         self.model_string = self.app_settings.get("model_string", "black-forest-labs/FLUX.1-pro")
+        self.image_dir = self.app_settings.get("image_dir", IMAGE_DIR)
 
     def save_app_settings(self):
         try:
@@ -1849,6 +1849,7 @@ class WallpaperApp(tk.Tk):
             self.app_settings["model_string"] = self.model_string
             self.app_settings["horizontal_paned_position"] = self.paned_window.sashpos(0)
             self.app_settings["vertical_paned_position"] = self.vertical_paned.sashpos(0)
+            self.app_settings["image_dir"] = self.image_dir
 
             with open(APP_SETTINGS_FILE, 'w') as f:
                 json.dump(self.app_settings, f, indent=4)
@@ -2062,6 +2063,8 @@ class WallpaperApp(tk.Tk):
 
     def _do_update_ui_scale(self, scale_factor):
         self.current_font_scale = scale_factor
+        self.scale_slider.set( scale_factor )
+        self.sel_scale_slider.set( scale_factor )
         new_size = int(self.base_font_size * scale_factor)
         self.app_font.config(size=new_size)
         def update_widget_fonts(widget, font):
@@ -2097,6 +2100,8 @@ class WallpaperApp(tk.Tk):
         self.gallery_grid.regrid()
 
     def _gallery_update_thumbnail_scale_callback(self, value):
+        self.thumbnail_scale_slider.set(float(value))
+        self.sel_thumbnail_scale_slider.set(float(value))
         if self._gallery_scale_update_after_id: self.after_cancel(self._gallery_scale_update_after_id)
         self._gallery_scale_update_after_id = self.after(300, lambda: self._gallery_do_scale_update(float(value)))
 
@@ -2127,8 +2132,7 @@ class WallpaperApp(tk.Tk):
         self.current_thumbnail_scale = scale
         self.gallery_thumbnail_max_size = int(DEFAULT_THUMBNAIL_DIM * scale)
         old_scroll_fraction = self.gallery_canvas.yview()[0]
-        width, height = self.gallery_grid.set_size_and_path(self._current_image_dir, 
-                                                            self.gallery_thumbnail_max_size)
+        width, height = self.gallery_grid.set_size_and_path(self.gallery_thumbnail_max_size, self.image_dir)
         # print(f"widht = {width}, height = {height}")
         self.gallery_canvas.configure(scrollregion=(0, 0, width, height))
         self._adjust_gallery_scroll_position(old_scroll_fraction)
