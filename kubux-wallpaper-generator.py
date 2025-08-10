@@ -1991,7 +1991,6 @@ class WallpaperApp(tk.Tk):
             
             self.prompt_text_widget = tk.Text(prompt_frame_inner, height=6, wrap="word", relief="sunken", borderwidth=2, font=self.app_font)
             self.prompt_text_widget.pack(fill="both", expand=True)
-            self.prompt_text_widget.bind("<Return>", lambda event: self._on_generate_button_click())
     
             self.gallery_canvas = tk.Canvas(thumbnail_frame_outer)
             self.gallery_scrollbar = ttk.Scrollbar(thumbnail_frame_outer, orient="vertical", command=self.gallery_canvas.yview)
