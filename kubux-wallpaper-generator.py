@@ -1858,6 +1858,16 @@ class WallpaperApp(tk.Tk):
     def _preview_is_gone(self):
         return self.paned_window.sashpos(0) <= 5 or self.vertical_paned.sashpos(0) <= 5
             
+    def _toggle_commands_frame(self):
+        if self._preview_is_gone():
+            self.gen_commands_frame.pack_forget()
+            self.sel_commands_frame.pack(side="bottom", fill="x", expand=True, pady=(5, 5), padx=5)
+            self.title("kubux wallpaper picker")
+        else:
+            self.sel_commands_frame.pack_forget()
+            self.gen_commands_frame.pack(side="bottom", fill="x", expand=True, pady=(5, 5), padx=5)
+            self.title("kubux wallpaper generator")
+
     def _on_closing(self):
         self._save_prompt_history()
         self.save_app_settings()
@@ -1867,113 +1877,150 @@ class WallpaperApp(tk.Tk):
         self.style = ttk.Style()
         self.style.configure('.', font=self.app_font)
 
-        controls_frame = tk.Frame(self)
-        controls_frame.pack(side="bottom", fill="x", pady=(5, 5), padx=5)
-        controls_frame.grid_columnconfigure((1, 3), weight=1)
+        self.bottom_frame = tk.Frame(self, height=0)
+        self.bottom_frame.pack(side="bottom", fill="x", pady=0, padx=0)
+        if True:
+            self.gen_commands_frame = tk.Frame(self.bottom_frame)
+            self.gen_commands_frame.grid_columnconfigure((1, 3), weight=1)
+
+            if True:
+                generate_btn_frame = tk.Frame(self.gen_commands_frame)
+                generate_btn_frame.grid(row=0, column=0, sticky="w")
+                self.generate_button = ttk.Button(generate_btn_frame, text="Generate", command=self._on_generate_button_click)
+                self.generate_button.pack(side="left", padx=(2,8))
+                self.history_button = ttk.Button(generate_btn_frame, text="History", command=self._show_prompt_history)
+                self.history_button.pack(side="left")
+        
+                if not ai_features_enabled:
+                    # Disable AI-dependent UI elements
+                    self.generate_button.configure(state="disabled")
+                    self.history_button.configure(state="disabled")
+                    
+                    # Add an informational button in their place
+                    self.enable_ai_button = ttk.Button(
+                        generate_btn_frame, 
+                        text="Enable AI Generation",
+                        command=self.show_api_setup_instructions
+                    )
+                    self.enable_ai_button.pack(side="left", padx=(8,0))
+        
+                sliders_frame = tk.Frame(self.gen_commands_frame)
+                sliders_frame.grid(row=0, column=2)
+                ttk.Label(sliders_frame, text="UI:").pack(side="left")
+        
+                self.scale_slider = tk.Scale(
+                    sliders_frame, from_=0.5, to=2.5, orient="horizontal", 
+                    resolution=0.1, showvalue=False
+                )
+                self.scale_slider.set(self.current_font_scale)
+                self.scale_slider.config(command=self._update_ui_scale)
+                self.scale_slider.pack(side="left")
+                
+                ttk.Label(sliders_frame, text="Thumbs:", padding="20 0 0 0").pack(side="left")
+                
+                self.thumbnail_scale_slider = tk.Scale(
+                    sliders_frame, from_=0.5, to=2.5, orient="horizontal",
+                    resolution=0.1, showvalue=False
+                )
+                self.thumbnail_scale_slider.set(self.current_thumbnail_scale)
+                self.thumbnail_scale_slider.config(command=self._gallery_update_thumbnail_scale_callback)
+                self.thumbnail_scale_slider.pack(side="left")
+        
+                action_btn_frame = tk.Frame(self.gen_commands_frame)
+                action_btn_frame.grid(row=0, column=4, sticky="e")
+                ttk.Button(action_btn_frame, text="Delete", command=self._delete_selected_image).pack(side="left", padx=(8,0))
+                ttk.Button(action_btn_frame, text="Add", command=self._manually_add_images).pack(side="left", padx=(8,0))
+                ttk.Button(action_btn_frame, text="Set Wallpaper", command=self._set_current_as_wallpaper).pack(side="left", padx=(8, 2))
+        
+            self.sel_commands_frame = tk.Frame(self.bottom_frame)
+            self.sel_commands_frame.grid_columnconfigure(1, weight=1)
+            if True:
+                sel_sliders_frame = tk.Frame(self.sel_commands_frame)
+                sel_sliders_frame.grid(row=0, column=0)
+                
+                ttk.Label(sel_sliders_frame, text="UI:").pack(side="left")
+                self.sel_scale_slider = tk.Scale(
+                    sel_sliders_frame, from_=0.5, to=2.5, orient="horizontal", 
+                    resolution=0.1, showvalue=False
+                )
+                self.sel_scale_slider.set(self.current_font_scale)
+                self.sel_scale_slider.config(command=self._update_ui_scale)
+                self.sel_scale_slider.pack(side="left")
+                
+                ttk.Label(sel_sliders_frame, text="Thumbs:", padding="20 0 0 0").pack(side="left")
+                self.sel_thumbnail_scale_slider = tk.Scale(
+                    sel_sliders_frame, from_=0.5, to=2.5, orient="horizontal",
+                    resolution=0.1, showvalue=False
+                )
+                self.sel_thumbnail_scale_slider.set(self.current_thumbnail_scale)
+                self.sel_thumbnail_scale_slider.config(command=self._gallery_update_thumbnail_scale_callback)
+                self.sel_thumbnail_scale_slider.pack(side="left")
+        
+                sel_action_btn_frame = tk.Frame(self.sel_commands_frame)
+                sel_action_btn_frame.grid(row=0, column=2, sticky="e")
+                ttk.Button(sel_action_btn_frame, text="Add", command=self._manually_add_images).pack(side="left", padx=(8,0))
 
         main_container = tk.Frame(self)
         main_container.pack(side="top", fill="both", expand=True, padx=5, pady=(5, 0))
-
-        self.paned_window = ttk.PanedWindow(main_container, orient="horizontal")
-        self.paned_window.pack(fill="both", expand=True)
-        
-        left_pane = ttk.Frame(self.paned_window)
-        self.paned_window.add(left_pane, weight=1)
-
-        thumbnail_frame_outer = ttk.LabelFrame(self.paned_window, text="Your Wallpaper Collection")
-        self.paned_window.add(thumbnail_frame_outer, weight=0)
-
-        self.vertical_paned = ttk.PanedWindow(left_pane, orient="vertical")
-        self.vertical_paned.pack(fill="both", expand=True)
-
-        self.display_frame = ttk.LabelFrame(self.vertical_paned, text="Preview")
-        self.vertical_paned.add(self.display_frame, weight=1)
-
-        self.generated_image_label = ttk.Label(self.display_frame, anchor="center")
-        self.generated_image_label.pack(fill="both", expand=True, padx=5, pady=5)
-
-        prompt_frame_outer = ttk.LabelFrame(self.vertical_paned, text="Generate New Wallpaper")
-        if ai_features_enabled:
-            self.vertical_paned.add(prompt_frame_outer, weight=0)
-
-        prompt_frame_inner = tk.Frame(prompt_frame_outer)
-        prompt_frame_inner.pack(fill="both", expand=True, padx=5, pady=5)
-        
-        self.prompt_text_widget = tk.Text(prompt_frame_inner, height=6, wrap="word", relief="sunken", borderwidth=2, font=self.app_font)
-        self.prompt_text_widget.pack(fill="both", expand=True)
-        self.prompt_text_widget.bind("<Return>", lambda event: self._on_generate_button_click())
-
-        self.gallery_canvas = tk.Canvas(thumbnail_frame_outer)
-        self.gallery_scrollbar = ttk.Scrollbar(thumbnail_frame_outer, orient="vertical", command=self.gallery_canvas.yview)
-        self.gallery_canvas.config(yscrollcommand=self.gallery_scrollbar.set)
-        self.gallery_scrollbar.pack(side="right", fill="y")
-        self.gallery_canvas.pack(side="left", fill="both", expand=True)
-        
-        self.gallery_grid = DirectoryThumbnailGrid(
-            self.gallery_canvas, 
-            directory_path=IMAGE_DIR,
-            item_width=self.gallery_thumbnail_max_size,
-            item_border_width=2,
-            dynamic_button_config_callback=self._gallery_configure_button,
-            bg=self.cget("background")
-        )
-        self.gallery_canvas.create_window((0, 0), window=self.gallery_grid, anchor="nw")
-        
-        self._gallery_bind_mousewheel(self)
-
-        self.gallery_canvas.bind("<Key>", self._gallery_on_key_press)
-        self.gallery_canvas.bind("<Enter>", lambda e: self.gallery_canvas.focus_set())
-        self.gallery_canvas.bind("<Leave>", lambda e: self.focus_set())
-
-        self.gallery_grid.bind("<Configure>", lambda e: self.gallery_canvas.configure(scrollregion=self.gallery_canvas.bbox("all")))
-
-        generate_btn_frame = tk.Frame(controls_frame)
-        generate_btn_frame.grid(row=0, column=0, sticky="w")
-        self.generate_button = ttk.Button(generate_btn_frame, text="Generate", command=self._on_generate_button_click)
-        self.generate_button.pack(side="left", padx=(2,8))
-        self.history_button = ttk.Button(generate_btn_frame, text="History", command=self._show_prompt_history)
-        self.history_button.pack(side="left")
-
-        if not ai_features_enabled:
-            # Disable AI-dependent UI elements
-            self.generate_button.configure(state="disabled")
-            self.history_button.configure(state="disabled")
+        if True:
+            self.paned_window = ttk.PanedWindow(main_container, orient="horizontal")
+            self.paned_window.pack(fill="both", expand=True)
             
-            # Add an informational button in their place
-            self.enable_ai_button = ttk.Button(
-                generate_btn_frame, 
-                text="Enable AI Generation",
-                command=self.show_api_setup_instructions
+            left_pane = ttk.Frame(self.paned_window)
+            self.paned_window.add(left_pane, weight=1)
+            
+            thumbnail_frame_outer = ttk.LabelFrame(self.paned_window, text="Your Wallpaper Collection")
+            self.paned_window.add(thumbnail_frame_outer, weight=0)
+            
+            self.vertical_paned = ttk.PanedWindow(left_pane, orient="vertical")
+            self.vertical_paned.pack(fill="both", expand=True)
+            
+            self.display_frame = ttk.LabelFrame(self.vertical_paned, text="Preview")
+            self.vertical_paned.add(self.display_frame, weight=1)
+
+            self.generated_image_label = ttk.Label(self.display_frame, anchor="center")
+            self.generated_image_label.pack(fill="both", expand=True, padx=5, pady=5)
+
+            prompt_frame_outer = ttk.LabelFrame(self.vertical_paned, text="Generate New Wallpaper")
+            if ai_features_enabled:
+                self.vertical_paned.add(prompt_frame_outer, weight=0)
+    
+            prompt_frame_inner = tk.Frame(prompt_frame_outer)
+            prompt_frame_inner.pack(fill="both", expand=True, padx=5, pady=5)
+            
+            self.prompt_text_widget = tk.Text(prompt_frame_inner, height=6, wrap="word", relief="sunken", borderwidth=2, font=self.app_font)
+            self.prompt_text_widget.pack(fill="both", expand=True)
+            self.prompt_text_widget.bind("<Return>", lambda event: self._on_generate_button_click())
+    
+            self.gallery_canvas = tk.Canvas(thumbnail_frame_outer)
+            self.gallery_scrollbar = ttk.Scrollbar(thumbnail_frame_outer, orient="vertical", command=self.gallery_canvas.yview)
+            self.gallery_canvas.config(yscrollcommand=self.gallery_scrollbar.set)
+            self.gallery_scrollbar.pack(side="right", fill="y")
+            self.gallery_canvas.pack(side="left", fill="both", expand=True)
+            
+            self.gallery_grid = DirectoryThumbnailGrid(
+                self.gallery_canvas, 
+                directory_path=IMAGE_DIR,
+                item_width=self.gallery_thumbnail_max_size,
+                item_border_width=2,
+                dynamic_button_config_callback=self._gallery_configure_button,
+                bg=self.cget("background")
             )
-            self.enable_ai_button.pack(side="left", padx=(8,0))
+            self.gallery_canvas.create_window((0, 0), window=self.gallery_grid, anchor="nw")
+            
+            self._gallery_bind_mousewheel(self)
+    
+            self.gallery_canvas.bind("<Key>", self._gallery_on_key_press)
+            self.gallery_canvas.bind("<Enter>", lambda e: self.gallery_canvas.focus_set())
+            self.gallery_canvas.bind("<Leave>", lambda e: self.focus_set())
+    
+            self.gallery_grid.bind("<Configure>", lambda e: self.gallery_canvas.configure(scrollregion=self.gallery_canvas.bbox("all")))
 
-        sliders_frame = tk.Frame(controls_frame)
-        sliders_frame.grid(row=0, column=2)
-        ttk.Label(sliders_frame, text="UI:").pack(side="left")
 
-        self.scale_slider = tk.Scale(
-            sliders_frame, from_=0.5, to=2.5, orient="horizontal", 
-            resolution=0.1, showvalue=False
-        )
-        self.scale_slider.set(self.current_font_scale)
-        self.scale_slider.config(command=self._update_ui_scale)
-        self.scale_slider.pack(side="left")
-        
-        ttk.Label(sliders_frame, text="Thumbs:", padding="20 0 0 0").pack(side="left")
-        
-        self.thumbnail_scale_slider = tk.Scale(
-            sliders_frame, from_=0.5, to=2.5, orient="horizontal",
-            resolution=0.1, showvalue=False
-        )
-        self.thumbnail_scale_slider.set(self.current_thumbnail_scale)
-        self.thumbnail_scale_slider.config(command=self._gallery_update_thumbnail_scale_callback)
-        self.thumbnail_scale_slider.pack(side="left")
-
-        action_btn_frame = tk.Frame(controls_frame)
-        action_btn_frame.grid(row=0, column=4, sticky="e")
-        ttk.Button(action_btn_frame, text="Delete", command=self._delete_selected_image).pack(side="left", padx=(8,0))
-        ttk.Button(action_btn_frame, text="Add", command=self._manually_add_images).pack(side="left", padx=(8,0))
-        ttk.Button(action_btn_frame, text="Set Wallpaper", command=self._set_current_as_wallpaper).pack(side="left", padx=(8, 2))
+        if self._preview_is_gone():
+            self.sel_commands_frame.pack(side="bottom", fill="x", expand=True, pady=(5, 5), padx=5)
+        else:
+            self.gen_commands_frame.pack(side="bottom", fill="x", expand=True, pady=(5, 5), padx=5)
 
         users_images = self._image_dir()
         self.dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, users_images)
@@ -2028,6 +2075,7 @@ class WallpaperApp(tk.Tk):
     def _on_display_frame_resize(self, event):
         if self.current_image_path and event.width > 1 and event.height > 1:
             self._display_image(self.current_image_path)
+        self._toggle_commands_frame()
 
     def _display_image(self, image_path):
         try:
@@ -2093,6 +2141,7 @@ class WallpaperApp(tk.Tk):
         if self._gallery_resize_job: 
             self.after_cancel(self._gallery_resize_job)
         self._gallery_resize_job = self.after(400, lambda e=event: self._do_gallery_resize_refresh(e))
+        self._toggle_commands_frame()
 
     def _do_gallery_resize_refresh(self, event):
         self.gallery_canvas.itemconfig(self.gallery_canvas.find_all()[0], width=event.width)
@@ -2102,7 +2151,8 @@ class WallpaperApp(tk.Tk):
         self.gallery_canvas.configure(scrollregion=(0, 0, width, height))
         self._adjust_gallery_scroll_position(old_scroll_fraction)
         self.update_idletasks()
-        
+        self._toggle_commands_frame()
+       
     def _gallery_on_thumbnail_click(self, image_path):
         old_selection = self.gallery_current_selection
         self.gallery_current_selection = image_path
