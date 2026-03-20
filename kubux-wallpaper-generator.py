@@ -501,9 +501,9 @@ def set_wallpaper(image_path, error_callback=fallback_show_error):
         # GNOME, Unity, Pantheon, Budgie
         if any(de in desktop_env for de in ['gnome', 'unity', 'pantheon', 'budgie']):
             # Try GNOME 3 approach first (newer versions)
-            os.system(f"gsettings set org.gnome.desktop.background picture-uri '{file_uri}'")
+            subprocess.run(["gsettings", "set", "org.gnome.desktop.background", "picture-uri", file_uri])
             # For GNOME 40+ with dark mode support
-            os.system(f"gsettings set org.gnome.desktop.background picture-uri-dark '{file_uri}'")
+            subprocess.run(["gsettings", "set", "org.gnome.desktop.background", "picture-uri-dark", file_uri])
             success = True
             
         # KDE Plasma
@@ -518,14 +518,13 @@ def set_wallpaper(image_path, error_callback=fallback_show_error):
                 d.writeConfig("Image", "{abs_path}");
             }}
             """
-            os.system(f"qdbus org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript '{script}'")
+            subprocess.run(["qdbus", "org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell.evaluateScript", script])
             success = True
             
         # XFCE
         elif 'xfce' in desktop_env:
             # Get the current monitor
             try:
-                import subprocess
                 props = subprocess.check_output(['xfconf-query', '-c', 'xfce4-desktop', '-p', '/backdrop', '-l']).decode('utf-8')
                 monitors = set([p.split('/')[2] for p in props.splitlines() if p.endswith('last-image')])
                 
@@ -533,48 +532,48 @@ def set_wallpaper(image_path, error_callback=fallback_show_error):
                     # Find all properties for this monitor
                     monitor_props = [p for p in props.splitlines() if f'/backdrop/screen0/{monitor}/' in p and p.endswith('last-image')]
                     for prop in monitor_props:
-                        os.system(f"xfconf-query -c xfce4-desktop -p {prop} -s {abs_path}")
+                        subprocess.run(["xfconf-query", "-c", "xfce4-desktop", "-p", prop, "-s", abs_path])
                 success = True
             except:
                 # Fallback for older XFCE
-                os.system(f"xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s {abs_path}")
+                subprocess.run(["xfconf-query", "-c", "xfce4-desktop", "-p", "/backdrop/screen0/monitor0/workspace0/last-image", "-s", abs_path])
                 success = True
                 
         # Cinnamon
         elif 'cinnamon' in desktop_env:
-            os.system(f"gsettings set org.cinnamon.desktop.background picture-uri '{file_uri}'")
+            subprocess.run(["gsettings", "set", "org.cinnamon.desktop.background", "picture-uri", file_uri])
             success = True
             
         # MATE
         elif 'mate' in desktop_env:
-            os.system(f"gsettings set org.mate.background picture-filename '{abs_path}'")
+            subprocess.run(["gsettings", "set", "org.mate.background", "picture-filename", abs_path])
             success = True
             
         # LXQt, LXDE
         elif 'lxqt' in desktop_env or 'lxde' in desktop_env:
             # For PCManFM-Qt
-            os.system(f"pcmanfm-qt --set-wallpaper={abs_path}")
+            subprocess.run(["pcmanfm-qt", f"--set-wallpaper={abs_path}"])
             # For PCManFM
-            os.system(f"pcmanfm --set-wallpaper={abs_path}")
+            subprocess.run(["pcmanfm", f"--set-wallpaper={abs_path}"])
             success = True
             
         # i3wm, sway and other tiling window managers often use feh
         elif any(de in desktop_env for de in ['i3', 'sway']):
-            os.system(f"feh --bg-fill '{abs_path}'")
+            subprocess.run(["feh", "--bg-fill", abs_path])
             success = True
             
         # Fallback method using feh (works for many minimal window managers)
         elif not success:
             # Try generic methods
             methods = [
-                f"feh --bg-fill '{abs_path}'",
-                f"nitrogen --set-scaled '{abs_path}'",
-                f"gsettings set org.gnome.desktop.background picture-uri '{file_uri}'"
+                ["feh", "--bg-fill", abs_path],
+                ["nitrogen", "--set-scaled", abs_path],
+                ["gsettings", "set", "org.gnome.desktop.background", "picture-uri", file_uri]
             ]
             
             for method in methods:
-                exit_code = os.system(method)
-                if exit_code == 0:
+                result = subprocess.run(method, capture_output=True)
+                if result.returncode == 0:
                     success = True
                     break
                     
