@@ -14,7 +14,7 @@
         # Create the together package using fetchPypi
         togetherPkg = pkgs.python3Packages.buildPythonPackage rec {
           pname = "together";
-          version = "1.5.21";
+          version = "1.5.35";
           format = "wheel";
 
           src = pkgs.fetchPypi {
