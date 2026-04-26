@@ -407,16 +407,16 @@ ai_width, ai_height = good_dimensions()
 
 def generate_image(prompt, model,
                    width=ai_width, height=ai_height,
-                   steps=28,
                    error_callback=fallback_show_error):
     client = Together(api_key=TOGETHER_API_KEY)
+    print( f"key = {TOGETHER_API_KEY}, prompt = {prompt}, model = {model}, width = {width}, height = {height}" )
     try:
         response = client.images.generate(
             prompt=prompt,
             model=model,
             width=width,
-            height=height,
-            steps=steps
+            steps=None,
+            height=height
         )
         return response.data[0].url
     except Exception as e:
@@ -1834,7 +1834,7 @@ class WallpaperApp(tk.Tk):
         self.current_thumbnail_scale = self.app_settings.get("thumbnail_scale", 1.0)
         self.horizontal_paned_position = self.app_settings.get("horizontal_paned_position", 600)
         self.vertical_paned_position = self.app_settings.get("vertical_paned_position", 400)
-        self.model_string = self.app_settings.get("model_string", "black-forest-labs/FLUX.1-pro")
+        self.model_string = self.app_settings.get("model_string", "black-forest-labs/FLUX.1.1-pro")
         self.image_dir = self.app_settings.get("image_dir", IMAGE_DIR)
 
     def save_app_settings(self):
