@@ -415,7 +415,6 @@ def generate_image(prompt, model,
             prompt=prompt,
             model=model,
             width=width,
-            steps=None,
             height=height
         )
         return response.data[0].url
