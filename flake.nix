@@ -19,7 +19,7 @@
 
           src = pkgs.fetchPypi {
             inherit pname version format;
-            sha256 = "sha256-NebAByAzouXxEF3oeB6Wn0HP/IXa5Qi29NwpM2ACaHI=";
+            sha256 = "sha256-dLYZLiZJLbziVw+4AfiE50c5uuEEWyDFsHCnFjnX1fw=";
             dist = "py3";
             python = "py3";
           };
