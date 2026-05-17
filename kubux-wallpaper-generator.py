@@ -993,9 +993,9 @@ class FullscreenImageViewer(tk.Toplevel):
         dx = self.pan_start_x - event.x
         dy = self.pan_start_y - event.y
         
-        # Move the canvas view (use "pixel" units for smooth panning)
-        self.canvas.xview_scroll(dx, "pixel")
-        self.canvas.yview_scroll(dy, "pixel")
+        # Move the canvas view (1 "unit" = 1/10 canvas width, so scale pixels down)
+        self.canvas.xview_scroll(int(dx * 0.1), "units")
+        self.canvas.yview_scroll(int(dy * 0.1), "units")
         
         # Update the starting position
         self.pan_start_x = event.x
