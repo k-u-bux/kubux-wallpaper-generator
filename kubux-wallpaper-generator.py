@@ -265,7 +265,7 @@ def get_or_make_pil_by_key(cache_key, img_path, thumbnail_max_size):
     if  os.path.exists(cached_thumbnail_path):
         try:
             pil_image_thumbnail = Image.open(cached_thumbnail_path)
-            log_debug(f"found {img_path} at size {thumbnail_max_size} on disk.")
+            # print(f"found {img_path} at size {thumbnail_max_size} on disk.")
         except Exception as e:
             # log_error(f"Error loading thumbnail for {img_path}: {e}")
             pass
@@ -290,7 +290,7 @@ def get_or_make_pil_by_key(cache_key, img_path, thumbnail_max_size):
 
 def get_or_make_pil(img_path, thumbnail_max_size):
     cache_key = uniq_file_id(img_path, thumbnail_max_size)
-    log_debug(f"cache_key for {img_path} @ {thumbnail_max_size} is {cache_key}")
+    # print(f"cache_key for {img_path} @ {thumbnail_max_size} is {cache_key}")
     return get_or_make_pil_by_key(cache_key, img_path, thumbnail_max_size)
 
 def make_tk_image( pil_image ):
@@ -307,7 +307,7 @@ def get_or_make_tk_by_key(cache_key, img_path, thumbnail_max_size):
     TK_CACHE[cache_key] = tk_image
     if len( TK_CACHE ) > CACHE_SIZE:
         TK_CACHE.popitem(last=False)
-        assert len( PIL_CACHE ) == CACHE_SIZE
+        assert len( TK_CACHE ) == CACHE_SIZE
     return tk_image
      
 def get_or_make_tk(img_path, thumbnail_max_size):
@@ -993,9 +993,9 @@ class FullscreenImageViewer(tk.Toplevel):
         dx = self.pan_start_x - event.x
         dy = self.pan_start_y - event.y
         
-        # Move the canvas view
-        self.canvas.xview_scroll(dx, "units")
-        self.canvas.yview_scroll(dy, "units")
+        # Move the canvas view (use "pixel" units for smooth panning)
+        self.canvas.xview_scroll(dx, "pixel")
+        self.canvas.yview_scroll(dy, "pixel")
         
         # Update the starting position
         self.pan_start_x = event.x
@@ -1026,7 +1026,7 @@ class FullscreenImageViewer(tk.Toplevel):
         # Only process events for the main window, not child widgets
         if event.widget == self and self.fit_to_window:
             # Delay update to avoid excessive redraws during resize
-            self.after_cancel(getattr(self, '_resize_job', 'break'))
+            self.after_cancel(getattr(self, '_resize_job', ''))
             self._resize_job = self.after(100, self._update_image)
     
     def _zoom_in(self, x=None, y=None):
@@ -2255,21 +2255,17 @@ class WallpaperApp(tk.Tk):
         threading.Thread(target=self._run_generation_task, args=(prompt,), daemon=True).start()
 
     def _run_generation_task(self, prompt):
+        def error_dialog(title, message):
+            self.after(0, lambda: custom_message_dialog(parent=self, title=title, message=message, font=self.app_font))
         image_url = generate_image(prompt, model=self.model_string,
-                                   error_callback=lambda t, m : custom_message_dialog(parent=self,
-                                                                                      title=t,
-                                                                                      message=m,
-                                                                                      font=self.app_font))
+                                   error_callback=error_dialog)
         if image_url:
             file_name = unique_name("dummy.png","generated")
             save_path = download_image(image_url, file_name, prompt,
-                                       error_callback=lambda t, m : custom_message_dialog(parent=self,
-                                                                                          title=t,
-                                                                                          message=m,
-                                                                                          font=self.app_font))
+                                       error_callback=error_dialog)
             if save_path:
                 self.after(0, self._load_images_and_select, save_path)
-        self.after(0, self.generate_button.config, {'text':"Generate", 'state':"normal"})
+        self.after(0, lambda: self.generate_button.config(text="Generate", state="normal"))
 
     def _load_images_and_select(self, path_to_select):
         self._load_images()
@@ -2299,7 +2295,9 @@ class WallpaperApp(tk.Tk):
                 
                 if is_already_linked:
                     continue
-    
+
+                if os.path.lexists(dest):
+                    os.remove(dest)
                 os.symlink(file_path, dest)
     
             except Exception as e:
