@@ -980,26 +980,28 @@ class FullscreenImageViewer(tk.Toplevel):
     def _on_mouse_down(self, event):
         """Handle mouse button press."""
         self.panning = True
-        self.pan_start_x = event.x
-        self.pan_start_y = event.y
+        self._pan_start_frac_x = self.canvas.xview()[0]
+        self._pan_start_frac_y = self.canvas.yview()[0]
+        self._pan_start_mouse_x = event.x
+        self._pan_start_mouse_y = event.y
         self.canvas.config(cursor="fleur")  # Change cursor to indicate panning
         
     def _on_mouse_drag(self, event):
         """Handle mouse drag for panning."""
         if not self.panning:
             return
-            
-        # Calculate the distance moved
-        dx = self.pan_start_x - event.x
-        dy = self.pan_start_y - event.y
-        
-        # Move the canvas view (1 "unit" = 1/10 canvas width, so scale pixels down)
-        self.canvas.xview_scroll(int(dx * 0.1), "units")
-        self.canvas.yview_scroll(int(dy * 0.1), "units")
-        
-        # Update the starting position
-        self.pan_start_x = event.x
-        self.pan_start_y = event.y
+
+        cw = self.canvas.winfo_width()
+        ch = self.canvas.winfo_height()
+        iw = self.display_image.width
+        ih = self.display_image.height
+
+        if iw > cw:
+            frac = self._pan_start_frac_x + (self._pan_start_mouse_x - event.x) / (iw - cw)
+            self.canvas.xview_moveto(max(0, min(1, frac)))
+        if ih > ch:
+            frac = self._pan_start_frac_y + (self._pan_start_mouse_y - event.y) / (ih - ch)
+            self.canvas.yview_moveto(max(0, min(1, frac)))
     
     def _on_mouse_up(self, event):
         """Handle mouse button release."""
