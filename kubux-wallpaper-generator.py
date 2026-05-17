@@ -997,10 +997,10 @@ class FullscreenImageViewer(tk.Toplevel):
         ih = self.display_image.height
 
         if iw > cw:
-            frac = self._pan_start_frac_x + (self._pan_start_mouse_x - event.x) / (iw - cw)
+            frac = self._pan_start_frac_x + (self._pan_start_mouse_x - event.x) / iw
             self.canvas.xview_moveto(max(0, min(1, frac)))
         if ih > ch:
-            frac = self._pan_start_frac_y + (self._pan_start_mouse_y - event.y) / (ih - ch)
+            frac = self._pan_start_frac_y + (self._pan_start_mouse_y - event.y) / ih
             self.canvas.yview_moveto(max(0, min(1, frac)))
     
     def _on_mouse_up(self, event):
