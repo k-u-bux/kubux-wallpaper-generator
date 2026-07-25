@@ -1840,6 +1840,7 @@ class WallpaperApp(QMainWindow):
         self.vertical_paned_position = self.app_settings.get("vertical_paned_position", 400)
         self.model_string = self.app_settings.get("model_string", "black-forest-labs/FLUX.1.1-pro")
         self.image_dir = self.app_settings.get("image_dir", IMAGE_DIR)
+        self.gallery_scroll_index = self.app_settings.get("gallery_grid_scroll_index", None)
 
     def save_app_settings(self):
         try:
@@ -1851,6 +1852,8 @@ class WallpaperApp(QMainWindow):
             self.app_settings["model_string"] = self.model_string
             self.app_settings["image_dir"] = self.image_dir
             self.app_settings["image_picker_last_directory"] = self._image_dir()
+            if hasattr(self, 'gallery_grid'):
+                self.app_settings["gallery_grid_scroll_index"] = self.gallery_grid._center_idx
             if hasattr(self, 'horizontal_splitter'):
                 sizes = self.horizontal_splitter.sizes()
                 if len(sizes) >= 2:
@@ -2056,6 +2059,15 @@ class WallpaperApp(QMainWindow):
 
         self._gallery_watcher = DirectoryWatcher(self._on_image_dir_changed)
         self._gallery_watcher.start_watching(IMAGE_DIR)
+
+        QTimer.singleShot(0, self._restore_gallery_scroll)
+
+    def _restore_gallery_scroll(self):
+        if self.gallery_scroll_index is None:
+            return
+        self.gallery_grid._center_idx = self.gallery_scroll_index
+        self.gallery_grid.move_scrollbar(self.gallery_grid._scroll_pos_from_index(self.gallery_scroll_index))
+        self.gallery_grid._render_viewport()
 
     def _on_image_dir_changed(self):
         self._load_images()
