@@ -1,147 +1,56 @@
-.TH KUBUX-WALLPAPER-GENERATOR 1 "June 2025" "Version 1.0" "User Commands"
+.TH KUBUX-WALLPAPER-GENERATOR 1 "2025" "kubux-wallpaper-generator" "User Commands"
 .SH NAME
-kubux-wallpaper-generator \- AI-powered wallpaper generator and manager for Linux
+kubux-wallpaper-generator \- AI-powered wallpaper creation and management tool
 .SH SYNOPSIS
 .B kubux-wallpaper-generator
 .SH DESCRIPTION
-.B kubux-wallpaper-generator
-is a graphical application for generating, managing, and setting desktop wallpapers. It features AI-powered image generation using Together.ai, image previews, and collection management capabilities.
-.PP
-The application provides an easy-to-use interface for creating custom wallpapers through text prompts, browsing your wallpaper collection, and applying wallpapers to your desktop environment.
+kubux-wallpaper-generator is a PySide6-based desktop application for generating,
+browsing, and managing wallpapers. It integrates with the Together.ai API for
+AI image generation and supports setting wallpapers on multiple Linux desktop
+environments (GNOME, KDE, XFCE, Cinnamon, MATE, LXQt, i3, Sway).
 .SH FEATURES
-.SS Image Generation
-.IP \(bu 4
-AI-powered image generation using text prompts
-.IP \(bu 4
-Prompt history for reusing successful prompts
-.IP \(bu 4
-Customizable image dimensions optimized for your screen resolution
-.IP \(bu 4
-Downloads generated images to your collection
-.SS Image Management
-.IP \(bu 4
-Preview wallpapers before applying them
-.IP \(bu 4
-Organize wallpapers in a visual gallery
-.IP \(bu 4
-Import existing images from your system
-.IP \(bu 4
-Delete unwanted wallpapers
-.SS Wallpaper Application
-.IP \(bu 4
-Set any image in your collection as the desktop wallpaper
-.IP \(bu 4
-Support for multiple Linux desktop environments
-.IP \(bu 4
-Automatic sizing to fit your display
-.SS User Interface
-.IP \(bu 4
-Adjustable UI scaling for different display resolutions
-.IP \(bu 4
-Customizable thumbnail sizes
-.IP \(bu 4
-Breadcrumb navigation for browsing folders
-.IP \(bu 4
-Fullscreen image previews
+.TP
+.B AI Image Generation
+Generate wallpapers from text prompts using Together.ai's FLUX models.
+.TP
+.B Image Gallery
+Browse your wallpaper collection with a virtual thumbnail grid that only
+renders visible thumbnails for optimal performance.
+.TP
+.B Image Viewer
+Full-screen image viewer with zoom, pan, and scroll support.
+.TP
+.B Wallpaper Setting
+Set any image as wallpaper with automatic desktop environment detection.
+.TP
+.B Image Import
+Add images from your file system via the built-in file picker dialog.
+.TP
+.B Prompt History
+Save and reuse your generation prompts.
+.SH CONFIGURATION
+Configuration files are stored in ~/.config/kubux-wallpaper-generator/.
+.TP
+.B app_settings.json
+Window geometry, UI scale, thumbnail scale, and model settings.
+.TP
+.B prompt_history.json
+Saved generation prompts.
+.PP
+Generated images are stored in ~/Pictures/kubux-wallpaper-generator/.
+Thumbnail cache is stored in ~/.cache/kubux-thumbnail-cache/.
 .SH ENVIRONMENT
-The application uses the following environment variables:
 .TP
 .B TOGETHER_API_KEY
-API key for Together.ai image generation service
+Required for AI image generation. Set in a .env file in your home directory.
 .SH FILES
 .TP
-.I ~/.config/kubux-wallpaper-generator/
-Configuration directory
-.TP
-.I ~/.config/kubux-wallpaper-generator/app_settings.json
-Application settings
-.TP
-.I ~/.config/kubux-wallpaper-generator/prompt_history.json
-History of used prompts
-.TP
 .I ~/.config/kubux-wallpaper-generator/images/
-Symlinks to wallpaper images
-.TP
-.I ~/.cache/kubux-thumbnail-cache/
-Thumbnail cache directory
+Symlinks to your wallpaper collection.
 .TP
 .I ~/Pictures/kubux-wallpaper-generator/
-Downloaded AI-generated images
-.SH SETUP
-To enable AI image generation features:
-.PP
-1. Create a Together.ai account at https://together.ai
-.br
-2. Generate an API key from your account settings
-.br
-3. Create a .env file in your home directory containing:
-.br
-   TOGETHER_API_KEY=your_api_key_here
-.br
-4. Restart the application
-.PP
-Without the API key, you can still use the application to manage and set existing wallpapers, but AI generation features will be disabled.
-.SH DESKTOP ENVIRONMENT SUPPORT
-Wallpaper setting is supported on most common Linux desktop environments:
-.PP
-.IP \(bu 4
-GNOME
-.IP \(bu 4
-KDE Plasma
-.IP \(bu 4
-XFCE
-.IP \(bu 4
-Cinnamon
-.IP \(bu 4
-MATE
-.IP \(bu 4
-LXQt/LXDE
-.IP \(bu 4
-i3/Sway (via feh)
-.PP
-For other window managers, it attempts to use common wallpaper setting tools like feh or nitrogen.
-.SH CONTROLS
-.SS Keyboard Shortcuts
-.TP
-.B Up/Down
-Scroll gallery
-.TP
-.B Page Up/Down
-Scroll gallery one page
-.TP
-.B Home/End
-Jump to beginning/end of gallery
-.TP
-.B Enter
-(in prompt field) Generate image
-.SS Image Viewer Shortcuts
-.TP
-.B +/-
-Zoom in/out
-.TP
-.B 0
-Reset zoom to fit window
-.TP
-.B F11
-Toggle fullscreen mode
-.TP
-.B Escape
-Close viewer
-.TP
-.B Mouse wheel
-Zoom in/out
-.TP
-.B Click and drag
-Pan image when zoomed
-.SH DIAGNOSTICS
-If you encounter issues, check for error messages in the terminal output.
-.SH COPYRIGHT
-Copyright 2025 Kai-Uwe Bux.
-.br
-Licensed under the Apache License, Version 2.0.
+Downloaded generated images.
+.SH LICENSE
+Apache License, Version 2.0
 .SH AUTHOR
 Kai-Uwe Bux
-.SH SEE ALSO
-.BR feh (1),
-.BR nitrogen (1),
-.BR gsettings (1)
