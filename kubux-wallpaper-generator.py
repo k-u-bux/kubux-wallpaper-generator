@@ -2309,5 +2309,7 @@ class WallpaperApp(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setApplicationName("kubux-wallpaper-generator")
+    app.setDesktopFileName("kubux-wallpaper-generator")
     window = WallpaperApp()
     sys.exit(app.exec())
