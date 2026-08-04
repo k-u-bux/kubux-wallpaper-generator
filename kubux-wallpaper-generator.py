@@ -1787,6 +1787,7 @@ class WallpaperApp(QMainWindow):
         self.max_history_items = 125
         self.gallery_current_selection = None
         self.gallery_thumbnail_max_size = DEFAULT_THUMBNAIL_DIM
+        self._open_pickers = 0
         self._initial_load_done = False
         self._load_prompt_history()
         self.load_app_settings()
@@ -2252,7 +2253,16 @@ class WallpaperApp(QMainWindow):
 
     def _manually_add_images(self):
         dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, self._image_dir())
-        dialog.open()
+        dialog.finished.connect(self._picker_finished)
+        if self._open_pickers == 0:
+            self.setEnabled(False)
+        self._open_pickers += 1
+        dialog.show()
+
+    def _picker_finished(self):
+        self._open_pickers -= 1
+        if self._open_pickers == 0:
+            self.setEnabled(True)
 
     def _image_dir(self):
         if hasattr(self, 'app_settings'):
