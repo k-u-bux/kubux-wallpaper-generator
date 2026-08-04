@@ -2252,7 +2252,7 @@ class WallpaperApp(QMainWindow):
 
     def _manually_add_images(self):
         dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, self._image_dir())
-        dialog.exec()
+        dialog.open()
 
     def _image_dir(self):
         if hasattr(self, 'app_settings'):
