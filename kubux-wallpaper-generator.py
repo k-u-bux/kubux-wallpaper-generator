@@ -721,7 +721,6 @@ class DirectoryThumbnailGrid:
         return self._files != old_files
 
 
-MIN_THUMBNAIL_SIZE = 96
 ITEM_BORDER_WIDTH = 3
 SPACING = 3
 PADDING = 6
@@ -734,10 +733,6 @@ def num_columns(frame_width, item_width, item_border_width, lr_padding, spacing)
     if available <= 0:
         return 1
     return max(1, available // item_total)
-
-def width_from_n_cols(n_cols, frame_width, item_border_width, lr_padding, spacing):
-    chunk = (frame_width - 2 * lr_padding) / n_cols
-    return int(chunk - 2 * item_border_width - spacing)
 
 def interleaved_range(start, middle, end):
     result = [middle]
@@ -997,14 +992,6 @@ class ThumbnailArea(QScrollArea):
         if hasattr(self.grid, 'thumbnail_loader'):
             self.grid.thumbnail_loader.shutdown()
 
-    def get_max_possible_columns(self):
-        return num_columns(self._vp_width(), MIN_THUMBNAIL_SIZE, self._item_border_width, PADDING, self._spacing)
-
-    def compute_width_for_columns(self, target_cols):
-        return width_from_n_cols(target_cols, self._vp_width(), self._item_border_width, PADDING, PADDING, self._spacing)
-
-    def get_current_column_count(self):
-        return self._calculate_columns(self._vp_width())
 
 
 # --- image viewer ---
