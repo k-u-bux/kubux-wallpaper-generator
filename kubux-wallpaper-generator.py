@@ -662,6 +662,7 @@ class ThumbnailButton(QPushButton):
         self.cache_key = None
         self.qt_image = None
         self.setCursor(Qt.PointingHandCursor)
+        self.setFocusPolicy(Qt.NoFocus)
         self.setStyleSheet(f"padding: 0px; margin: 0px; border: {self.item_border_width}px solid transparent;")
 
     def set_image(self, pixmap):
@@ -780,6 +781,7 @@ class ThumbnailArea(QScrollArea):
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
         self.setFocusPolicy(Qt.StrongFocus)
         self.viewport().setMouseTracking(True)
+        self.viewport().installEventFilter(self)
 
     def scrollbar_pos(self):
         return self.verticalScrollBar().value()
@@ -971,6 +973,11 @@ class ThumbnailArea(QScrollArea):
             sb.setValue(sb.maximum())
         else:
             super().keyPressEvent(event)
+
+    def eventFilter(self, obj, event):
+        if obj is self.viewport() and event.type() == QEvent.Type.MouseButtonPress:
+            self.setFocus()
+        return super().eventFilter(obj, event)
 
     def get_button(self, img_path, width, pre_cache=True):
         return self.grid.get_button(img_path, width, self._item_border_width)
@@ -1952,6 +1959,7 @@ class WallpaperApp(QMainWindow):
         gallery_layout.addWidget(self.gallery_grid, 1)
         self.horizontal_splitter.addWidget(gallery_frame)
         self.horizontal_splitter.setStretchFactor(0, 1)
+        QTimer.singleShot(0, self.gallery_grid.setFocus)
         self.horizontal_splitter.setStretchFactor(1, 0)
 
         # Bottom command frames — added AFTER the splitter so they're at the bottom
