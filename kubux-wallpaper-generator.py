@@ -2253,6 +2253,7 @@ class WallpaperApp(QMainWindow):
 
     def _manually_add_images(self):
         dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, self._image_dir())
+        dialog.setWindowFlags(Qt.Dialog | Qt.Window)
         dialog.finished.connect(self._picker_finished)
         if self._open_pickers == 0:
             self.setEnabled(False)
