@@ -1717,7 +1717,7 @@ class ImagePickerDialog(QDialog):
         self._gallery_grid.set_size_and_path(self._thumbnail_max_size, self._current_image_dir)
 
     def _on_clone(self):
-        self.master._manually_add_images()
+        self.master._manually_add_images(self._current_image_dir)
 
     def _on_select_all(self):
         all_files = list_image_files(self._current_image_dir)
@@ -1788,6 +1788,7 @@ class WallpaperApp(QMainWindow):
         self.gallery_current_selection = None
         self.gallery_thumbnail_max_size = DEFAULT_THUMBNAIL_DIM
         self._open_pickers = 0
+        self._open_picker_dialogs = []
         self._initial_load_done = False
         self._load_prompt_history()
         self.load_app_settings()
@@ -2004,7 +2005,7 @@ class WallpaperApp(QMainWindow):
 
         self.add_button = QPushButton("Add")
         self.add_button.setFont(self.main_font)
-        self.add_button.clicked.connect(self._manually_add_images)
+        self.add_button.clicked.connect(lambda checked: self._manually_add_images())
         gen_layout.addWidget(self.add_button)
 
         self.set_wallpaper_button = QPushButton("Set Wallpaper")
@@ -2037,7 +2038,7 @@ class WallpaperApp(QMainWindow):
         sel_layout.addWidget(self.sel_thumbnail_scale_slider)
         sel_add_btn = QPushButton("Add")
         sel_add_btn.setFont(self.main_font)
-        sel_add_btn.clicked.connect(self._manually_add_images)
+        sel_add_btn.clicked.connect(lambda checked: self._manually_add_images())
         sel_layout.addWidget(sel_add_btn)
         self.sel_commands_frame.hide()
         bottom_layout.addWidget(self.sel_commands_frame)
@@ -2251,16 +2252,24 @@ class WallpaperApp(QMainWindow):
                 log_error(f"Failed to add image: {e}")
         self._load_images()
 
-    def _manually_add_images(self):
-        dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, self._image_dir())
-        dialog.setWindowFlags(Qt.Dialog | Qt.Window)
+    def _manually_add_images(self, directory=None):
+        if directory is None:
+            directory = self._image_dir()
+        dialog = ImagePickerDialog(self, self.gallery_thumbnail_max_size, directory)
+        dialog.setParent(None)
+        dialog.setWindowFlags(Qt.Window)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
         dialog.finished.connect(self._picker_finished)
         if self._open_pickers == 0:
             self.setEnabled(False)
         self._open_pickers += 1
+        self._open_picker_dialogs.append(dialog)
         dialog.show()
 
     def _picker_finished(self):
+        dialog = self.sender()
+        if dialog in self._open_picker_dialogs:
+            self._open_picker_dialogs.remove(dialog)
         self._open_pickers -= 1
         if self._open_pickers == 0:
             self.setEnabled(True)
@@ -2296,6 +2305,8 @@ class WallpaperApp(QMainWindow):
         set_wallpaper(self.current_image_path)
 
     def closeEvent(self, event):
+        for d in list(self._open_picker_dialogs):
+            d.close()
         self._save_prompt_history()
         self.save_app_settings()
         if hasattr(self, '_gallery_watcher'):
