@@ -1571,7 +1571,6 @@ class ImagePickerDialog(QDialog):
         self._initialized = False
         self.setWindowTitle("Add Images to Collection")
         self.resize(800, 600)
-        self._save_settings()
         self._create_widgets()
         self.background_worker = BackgroundWorker(self._current_image_dir, self._thumbnail_max_size)
         self._start_cache_timer()
@@ -1848,6 +1847,7 @@ class WallpaperApp(QMainWindow):
             self.app_settings["model_string"] = self.model_string
             self.app_settings["image_dir"] = self.image_dir
             self.app_settings["image_picker_last_directory"] = self._image_dir()
+            self.app_settings["image_picker_dialog_geometry"] = self.app_settings.get("image_picker_dialog_geometry", "")
             if hasattr(self, 'gallery_grid'):
                 self.app_settings["gallery_grid_scroll_index"] = self.gallery_grid._center_idx
             if hasattr(self, 'horizontal_splitter'):
