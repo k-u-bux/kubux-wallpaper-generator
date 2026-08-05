@@ -1884,8 +1884,8 @@ class WallpaperApp(QMainWindow):
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(5, 5, 5, 0)
-        main_layout.setSpacing(5)
+        # main_layout.setContentsMargins(5, 5, 5, 0)
+        # main_layout.setSpacing(5)
 
         # Main content area — goes ABOVE the command bar (added first = top)
         self.horizontal_splitter = QSplitter(Qt.Horizontal)
